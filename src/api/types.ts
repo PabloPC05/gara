@@ -1,31 +1,26 @@
-// ═══════════════════════════════════════════════════
-// CESGA API — TypeScript Types
-// Based on OpenAPI schema from api-mock-cesga.onrender.com
-// ═══════════════════════════════════════════════════
+// ─── Jobs ───
 
-// ─── Job Submission ───
-export interface JobSubmitRequest {
-  fasta_sequence: string;
-  fasta_filename: string;
-  gpus?: number;       // 0–4, default 0
-  cpus?: number;       // 1–64, default 1
-  memory_gb?: number;  // >0 to 256, default 4
-  max_runtime_seconds?: number; // 60–86400, default 3600
+export type JobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export interface SubmitJobPayload {
+  fasta_sequence: string;       // 1–100_000 chars
+  fasta_filename: string;       // 1–255 chars
+  gpus?: number;                // 0–4, default 0
+  cpus?: number;                // 1–64, default 1
+  memory_gb?: number;           // (0, 256], default 4.0
+  max_runtime_seconds?: number; // 60–86_400, default 3600
 }
 
-export interface JobSubmitResponse {
+export interface SubmitJobResponse {
   job_id: string;
-  status: JobStatus;
+  status: JobStatus; // always PENDING on creation
   message: string;
 }
-
-// ─── Job Status ───
-export type JobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export interface JobStatusResponse {
   job_id: string;
   status: JobStatus;
-  created_at: string;
+  created_at: string; // ISO 8601
   started_at: string | null;
   completed_at: string | null;
   gpus: number;
@@ -36,11 +31,40 @@ export interface JobStatusResponse {
   error_message: string | null;
 }
 
-// ─── Job Outputs ───
+// ─── Outputs ───
+
+// All fields are nullable per the OpenAPI schema (no `required` list on ProteinMetadata).
+export interface ProteinMetadata {
+  identified_protein: string | null;
+  uniprot_id: string | null;
+  pdb_id: string | null;
+  protein_name: string | null;
+  organism: string | null;
+  description: string | null;
+  data_source: string | null;
+  plddt_average: number | null;
+  model_type: string | null;
+}
+
+// `confidence` is declared as `type: object` (no properties) in the OpenAPI schema.
+// Shape verified via runtime call to /jobs/{id}/outputs on a real Ubiquitin job.
+export interface ConfidenceData {
+  plddt_per_residue: number[];
+  plddt_mean: number;
+  plddt_histogram: {
+    very_high: number; // > 90
+    high: number;      // 70–90
+    medium: number;    // 50–70
+    low: number;       // < 50
+  };
+  pae_matrix: number[][];
+  mean_pae: number;
+}
+
 export interface StructuralDataOutput {
-  pdb_file: string | null;
-  cif_file: string | null;
-  confidence: Record<string, unknown>;
+  pdb_file: string | null; // nullable in schema
+  cif_file: string | null; // nullable in schema
+  confidence: ConfidenceData; // only required field
 }
 
 export interface SecondaryStructurePrediction {
@@ -59,27 +83,15 @@ export interface SequenceProperties {
 }
 
 export interface BiologicalDataOutput {
-  solubility_score: number;
+  solubility_score: number;    // required
   solubility_prediction: string | null;
-  instability_index: number;
+  instability_index: number;   // required
   stability_status: string | null;
-  toxicity_alerts: string[];
+  toxicity_alerts: string[];   // required, may be empty
   allergenicity_alerts: string[];
   secondary_structure_prediction: SecondaryStructurePrediction | null;
   sequence_properties: SequenceProperties | null;
   source: string | null;
-}
-
-export interface ProteinMetadata {
-  identified_protein: string | null;
-  uniprot_id: string | null;
-  pdb_id: string | null;
-  protein_name: string | null;
-  organism: string | null;
-  description: string | null;
-  data_source: string | null;
-  plddt_average: number | null;
-  model_type: string | null;
 }
 
 export interface JobOutputsResponse {
@@ -91,60 +103,12 @@ export interface JobOutputsResponse {
   logs: string;
 }
 
-// ─── Job Accounting ───
-export interface AccountingData {
-  cpu_hours: number;
-  gpu_hours: number;
-  memory_gb_hours: number;
-  total_wall_time_seconds: number;
-  cpu_efficiency_percent: number;
-  memory_efficiency_percent: number;
-  gpu_efficiency_percent: number | null;
-}
+// ─── Proteins ───
 
-export interface JobAccountingResponse {
-  job_id: string;
-  status: JobStatus;
-  accounting: AccountingData;
-}
-
-// ─── Protein Catalog ───
-export interface ProteinSummary {
-  protein_id: string;
-  uniprot_id: string;
-  pdb_id: string;
-  protein_name: string;
-  organism: string;
-  length: number;
-  molecular_weight: number;
-  category: string;
-  description: string;
-  tags: string[];
-}
-
-export interface ProteinDetail extends ProteinSummary {
-  isoelectric_point: number;
-  function: string;
-  cellular_location: string;
-  activity: string;
-  sequence: string;
-  fasta_ready: string;
-  known_structures: Record<string, unknown>[];
-}
-
+// Verified via GET /proteins/samples in the live API: direct array with exactly these 4 fields.
 export interface ProteinSample {
   protein_name: string;
   uniprot_id: string;
   sequence_length: number;
   fasta: string;
-}
-
-export interface DatabaseStats {
-  total_proteins: number;
-  embedded_proteins: number;
-  extended_proteins: number;
-  average_length: number;
-  min_length: number;
-  max_length: number;
-  by_category: Record<string, number>;
 }

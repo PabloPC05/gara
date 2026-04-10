@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import type { BiologicalDataOutput, ProteinMetadata, StructuralDataOutput } from '../api/types';
+import type { BiologicalDataOutput, ConfidenceData, ProteinMetadata, StructuralDataOutput } from '../api/types';
 
 interface MetricsDashboardProps {
   biologicalData: BiologicalDataOutput;
@@ -12,11 +12,8 @@ interface MetricsDashboardProps {
 }
 
 /* ─── pLDDT per-residue chart ─── */
-function PlddtChart({ confidence }: { confidence: Record<string, unknown> }) {
-  // The confidence object may have plddt_per_residue as an array
-  const plddtArray: number[] = (confidence as any).plddt_per_residue
-    || (confidence as any).plddt
-    || [];
+function PlddtChart({ confidence }: { confidence: ConfidenceData }) {
+  const plddtArray = confidence.plddt_per_residue;
 
   if (!plddtArray.length) {
     return (
@@ -103,9 +100,9 @@ function PlddtChart({ confidence }: { confidence: Record<string, unknown> }) {
 }
 
 /* ─── PAE Heatmap ─── */
-function PaeHeatmap({ confidence }: { confidence: Record<string, unknown> }) {
+function PaeHeatmap({ confidence }: { confidence: ConfidenceData }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const paeMatrix: number[][] = (confidence as any).pae || (confidence as any).predicted_aligned_error || [];
+  const paeMatrix = confidence.pae_matrix;
 
   useEffect(() => {
     if (!canvasRef.current || !paeMatrix.length) return;

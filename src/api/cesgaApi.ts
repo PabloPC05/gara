@@ -1,110 +1,55 @@
-// ═══════════════════════════════════════════════════
-// CESGA API Client — Full lifecycle management
-// ═══════════════════════════════════════════════════
-
-import axios from 'axios';
+import { ApiError, api } from './client';
 import type {
-  JobSubmitRequest,
-  JobSubmitResponse,
+  SubmitJobPayload,
+  SubmitJobResponse,
   JobStatusResponse,
   JobOutputsResponse,
-  JobAccountingResponse,
-  ProteinSummary,
-  ProteinDetail,
+  JobStatus,
   ProteinSample,
-  DatabaseStats,
 } from './types';
 
-const API_BASE = 'https://api-mock-cesga.onrender.com';
-
-const api = axios.create({
-  baseURL: API_BASE,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
-});
-
-// ─── Jobs ───
-
-export async function submitJob(data: JobSubmitRequest): Promise<JobSubmitResponse> {
-  const res = await api.post<JobSubmitResponse>('/jobs/submit', data);
-  return res.data;
+export async function submitJob(payload: SubmitJobPayload): Promise<SubmitJobResponse> {
+  const { data } = await api.post<SubmitJobResponse>('/jobs/submit', payload);
+  return data;
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
-  const res = await api.get<JobStatusResponse>(`/jobs/${jobId}/status`);
-  return res.data;
+  const { data } = await api.get<JobStatusResponse>(`/jobs/${jobId}/status`);
+  return data;
 }
 
 export async function getJobOutputs(jobId: string): Promise<JobOutputsResponse> {
-  const res = await api.get<JobOutputsResponse>(`/jobs/${jobId}/outputs`);
-  return res.data;
+  const { data } = await api.get<JobOutputsResponse>(`/jobs/${jobId}/outputs`);
+  return data;
 }
 
-export async function getJobAccounting(jobId: string): Promise<JobAccountingResponse> {
-  const res = await api.get<JobAccountingResponse>(`/jobs/${jobId}/accounting`);
-  return res.data;
-}
-
-export async function listJobs(skip = 0, limit = 100): Promise<JobStatusResponse[]> {
-  const res = await api.get<JobStatusResponse[]>('/jobs/', { params: { skip, limit } });
-  return res.data;
+export async function getProteinSamples(): Promise<ProteinSample[]> {
+  const { data } = await api.get<ProteinSample[]>('/proteins/samples');
+  return data;
 }
 
 // ─── Polling ───
 
-export interface PollOptions {
-  intervalMs?: number;
-  maxAttempts?: number;
-  onStatusChange?: (status: JobStatusResponse) => void;
+const TERMINAL: JobStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+interface PollOptions {
+  intervalMs?: number;  // default 2500 ms
+  timeoutMs?: number;   // default 5 min — raise to hours for real CESGA jobs
+  onStatusChange?: (s: JobStatusResponse) => void;
 }
 
-/**
- * Polls job status until COMPLETED or FAILED.
- * Returns the final status response.
- */
 export async function pollJobStatus(
   jobId: string,
-  options: PollOptions = {}
+  { intervalMs = 2500, timeoutMs = 5 * 60_000, onStatusChange }: PollOptions = {},
 ): Promise<JobStatusResponse> {
-  const { intervalMs = 3000, maxAttempts = 100, onStatusChange } = options;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    if (Date.now() > deadline) {
+      throw new ApiError('El trabajo ha superado el tiempo máximo de espera. Cancela e inténtalo de nuevo.');
+    }
     const status = await getJobStatus(jobId);
     onStatusChange?.(status);
-
-    if (status.status === 'COMPLETED' || status.status === 'FAILED' || status.status === 'CANCELLED') {
-      return status;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    if (TERMINAL.includes(status.status)) return status;
+    await new Promise((r) => setTimeout(r, intervalMs));
   }
-
-  throw new Error(`Job ${jobId} did not complete within ${maxAttempts} polling attempts`);
-}
-
-// ─── Protein Catalog ───
-
-export async function listProteins(params?: {
-  category?: string;
-  search?: string;
-  min_length?: number;
-  max_length?: number;
-}): Promise<ProteinSummary[]> {
-  const res = await api.get<ProteinSummary[]>('/proteins/', { params });
-  return res.data;
-}
-
-export async function getProteinDetail(proteinId: string): Promise<ProteinDetail> {
-  const res = await api.get<ProteinDetail>(`/proteins/${proteinId}`);
-  return res.data;
-}
-
-export async function getProteinSamples(): Promise<ProteinSample[]> {
-  const res = await api.get<ProteinSample[]>('/proteins/samples');
-  return res.data;
-}
-
-export async function getDatabaseStats(): Promise<DatabaseStats> {
-  const res = await api.get<DatabaseStats>('/proteins/stats');
-  return res.data;
 }
