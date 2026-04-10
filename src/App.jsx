@@ -1,18 +1,20 @@
 import MolecularUniverse from './components/MolecularUniverse'
 import { AppSidebar } from './components/AppSidebar'
-import { User, Bell, Search } from 'lucide-react'
+import { Bell, Search, PanelLeft } from 'lucide-react'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "./components/ui/sidebar"
 import {
-  Menubar,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarShortcut,
-  MenubarTrigger,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
-} from "./components/ui/menubar"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "./components/ui/avatar"
 
 export default function App() {
   // PDB Universe Data: Expert configuration for protein distribution
@@ -25,73 +27,93 @@ export default function App() {
   ];
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-white flex">
-      {/* Sidebar */}
-      <AppSidebar />
+    <SidebarProvider>
+      <div className="relative flex h-screen w-full overflow-hidden bg-white">
+        {/* Actual Shadcn Sidebar */}
+        <AppSidebar />
 
-      {/* Main Viewport */}
-      <main className="flex-1 relative flex flex-col">
-        
-        {/* Top Header with Menubar and Account */}
-        <header className="absolute top-0 left-0 right-0 z-50 h-14 border-b bg-white/60 backdrop-blur-md flex items-center justify-between px-6 ml-64">
-          <div className="flex items-center gap-4">
-            <Menubar className="border-none bg-transparent shadow-none h-auto">
-              <MenubarMenu>
-                <MenubarTrigger className="font-bold text-xs uppercase tracking-widest text-slate-600">Archivo</MenubarTrigger>
-                <MenubarContent>
-                  <MenubarItem>Nuevo Proyecto <MenubarShortcut>⌘N</MenubarShortcut></MenubarItem>
-                  <MenubarItem>Abrir PDB... <MenubarShortcut>⌘O</MenubarShortcut></MenubarItem>
-                  <MenubarSeparator />
-                  <MenubarItem>Guardar Escena <MenubarShortcut>⌘S</MenubarShortcut></MenubarItem>
-                  <MenubarItem>Exportar Imagen...</MenubarItem>
-                  <MenubarSeparator />
-                  <MenubarItem>Salir</MenubarItem>
-                </MenubarContent>
-              </MenubarMenu>
-              <MenubarMenu>
-                <MenubarTrigger className="font-bold text-xs uppercase tracking-widest text-slate-600">Ventana</MenubarTrigger>
-                <MenubarContent>
-                  <MenubarItem>Maximizar Visor</MenubarItem>
-                  <MenubarItem>Pantalla Completa</MenubarItem>
-                  <MenubarSeparator />
-                  <MenubarItem>Consola de Python</MenubarItem>
-                </MenubarContent>
-              </MenubarMenu>
-              <MenubarMenu>
-                <MenubarTrigger className="font-bold text-xs uppercase tracking-widest text-slate-600">Ayuda</MenubarTrigger>
-                <MenubarContent>
-                  <MenubarItem>Documentación</MenubarItem>
-                  <MenubarItem>Atajos de Teclado</MenubarItem>
-                  <MenubarSeparator />
-                  <MenubarItem>Acerca de BioViewer</MenubarItem>
-                </MenubarContent>
-              </MenubarMenu>
-            </Menubar>
-          </div>
+        <SidebarInset className="relative flex-1 bg-white flex flex-col min-w-0">
+          {/* Header Bar */}
+          <header className="z-50 h-16 border-b border-slate-100 bg-white/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger className="h-9 w-9 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 transition-colors" />
+              
+              <div className="h-4 w-px bg-slate-200" />
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg">
-               <Search className="h-3 w-3 text-slate-400" />
-               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Buscar...</span>
-               <kbd className="ml-2 pointer-events-none inline-flex h-4 items-center gap-1 rounded border bg-white px-1 font-mono text-[8px] font-medium text-slate-400">
-                 ⌘K
-               </kbd>
-            </div>
-            
-            <button className="flex items-center gap-2 hover:bg-slate-50 p-1 rounded-lg transition-all group">
-              <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-                <User className="h-4 w-4" />
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="px-3 py-1.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
+                      Archivo
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="min-w-56 border border-slate-200 bg-white/95 text-slate-900 shadow-xl backdrop-blur-xl rounded-2xl p-2">
+                    <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Gestión de Archivos</DropdownMenuLabel>
+                    <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Nuevo Proyecto <DropdownMenuShortcut>⌘N</DropdownMenuShortcut></DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Abrir PDB... <DropdownMenuShortcut>⌘O</DropdownMenuShortcut></DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-slate-100" />
+                    <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold text-blue-600">Guardar Escena <DropdownMenuShortcut>⌘S</DropdownMenuShortcut></DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="rounded-xl px-3 py-2 text-sm font-bold">Exportar como...</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="border border-slate-200 bg-white shadow-xl rounded-2xl p-2">
+                        <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Imagen PNG</DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Modelo GLB</DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="px-3 py-1.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
+                      Ventana
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-52 border border-slate-200 bg-white shadow-xl rounded-2xl p-2">
+                    <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Consola Python</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Monitor de Red</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Mi Cuenta</span>
-            </button>
-          </div>
-        </header>
+            </div>
 
-        {/* The 3D Molecular Universe - High Performance Viewport */}
-        <div className="flex-1 relative bg-slate-950">
-          <MolecularUniverse proteins={pdbUniverse} background="#0a0a0c" />
-        </div>
-      </main>
-    </div>
+            <div className="flex items-center gap-3">
+              <button className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 transition hover:bg-white hover:border-blue-200 hover:text-blue-600 md:flex">
+                <Search className="h-3.5 w-3.5" />
+                Buscar Proteínas
+                <kbd className="ml-2 rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-slate-400">⌘K</kbd>
+              </button>
+
+              <button className="h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-900 transition-colors">
+                <Bell className="h-4 w-4" />
+              </button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 rounded-xl border border-slate-200 p-1 hover:bg-slate-50 transition-colors">
+                    <Avatar className="h-8 w-8 rounded-lg">
+                      <AvatarImage src="https://avatar.vercel.sh/bio" className="rounded-lg" />
+                      <AvatarFallback className="bg-blue-600 text-[10px] font-bold text-white rounded-lg">BV</AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 border border-slate-200 bg-white shadow-xl rounded-2xl p-2">
+                  <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Perfil de Usuario</DropdownMenuLabel>
+                  <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Ajustes</DropdownMenuItem>
+                  <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold">Suscripción Pro</DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-100" />
+                  <DropdownMenuItem className="rounded-xl px-3 py-2 text-sm font-bold text-red-600">Cerrar Sesión</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </header>
+
+          {/* 3D Viewport - The Molecular Universe */}
+          <div className="flex-1 relative overflow-hidden bg-white">
+            <MolecularUniverse proteins={pdbUniverse} background="#ffffff" />
+          </div>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   )
 }
