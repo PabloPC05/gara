@@ -78,8 +78,8 @@ function PlddtChart({ confidence }: { confidence: Record<string, unknown> }) {
               fontSize: 12,
               color: '#f1f5f9',
             }}
-            formatter={(val: number) => [
-              <span key="v" style={{ color: getColor(val) }}>{val.toFixed(1)}</span>,
+            formatter={(val: any) => [
+              <span key="v" style={{ color: getColor(Number(val)) }}>{Number(val).toFixed(1)}</span>,
               'pLDDT',
             ]}
             labelFormatter={(label) => `Residuo ${label}`}
