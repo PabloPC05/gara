@@ -7,10 +7,10 @@ interface ProteinViewerProps {
 
 // pLDDT color scale (AlphaFold convention)
 const PLDDT_LEGEND = [
-  { label: 'Muy alta (pLDDT > 90)', color: '#0053d6', range: '> 90' },
-  { label: 'Alta (70 < pLDDT ≤ 90)', color: '#65cbf3', range: '70–90' },
-  { label: 'Baja (50 < pLDDT ≤ 70)', color: '#ffdb13', range: '50–70' },
-  { label: 'Muy baja (pLDDT ≤ 50)', color: '#ff7d45', range: '≤ 50' },
+  { label: 'Muy alta (> 90)', color: '#0053d6', range: '> 90' },
+  { label: 'Alta (70–90)', color: '#65cbf3', range: '70–90' },
+  { label: 'Baja (50–70)', color: '#ffdb13', range: '50–70' },
+  { label: 'Muy baja (≤ 50)', color: '#ff7d45', range: '≤ 50' },
 ];
 
 export default function ProteinViewer({ pdbData }: ProteinViewerProps) {
@@ -24,20 +24,20 @@ export default function ProteinViewer({ pdbData }: ProteinViewerProps) {
     if (!containerRef.current || !pdbData) return;
 
     try {
+      setIsLoading(true);
       // @ts-ignore — 3Dmol.js doesn't have proper TS typings
       const $3Dmol = await import('3dmol');
 
-      // Clear previous
       containerRef.current.innerHTML = '';
 
       const viewer = $3Dmol.createViewer(containerRef.current, {
-        backgroundColor: '#0a0e17',
+        backgroundColor: '#0a0e17', // Match var(--color-bg-primary)
         antialias: true,
       });
 
       viewer.addModel(pdbData, 'pdb');
 
-      // Color by B-factor (pLDDT is stored in B-factor column)
+      // Color by B-factor
       viewer.setStyle({}, {
         cartoon: {
           colorfunc: (atom: any) => {
@@ -89,7 +89,7 @@ export default function ProteinViewer({ pdbData }: ProteinViewerProps) {
     if (isSpinning) {
       viewerRef.current.spin(false);
     } else {
-      viewerRef.current.spin('y');
+      viewerRef.current.spin('y', 0.01);
     }
     setIsSpinning(!isSpinning);
   };
@@ -102,149 +102,136 @@ export default function ProteinViewer({ pdbData }: ProteinViewerProps) {
     viewerRef.current.render();
   };
 
-  if (!pdbData) {
-    return (
-      <div className="glass-card" style={{
-        padding: 40,
-        textAlign: 'center',
-        color: 'var(--color-text-muted)',
-      }}>
-        <p style={{ fontSize: 48, marginBottom: 12 }}>🔬</p>
-        <p>Esperando datos estructurales...</p>
-      </div>
-    );
-  }
+  if (!pdbData) return null;
 
   return (
-    <div className="glass-card animate-fade-in-up" style={{ overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{
-        padding: '16px 20px',
-        borderBottom: '1px solid var(--color-border-secondary)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 8,
-      }}>
-        <h3 style={{
-          fontSize: 16,
-          fontWeight: 600,
-          color: 'var(--color-text-primary)',
-          margin: 0,
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* 3Dmol.js Wrapper container */}
+      <div
+        ref={containerRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'var(--color-bg-primary)',
+          cursor: isSpinning ? 'default' : 'grab',
+        }}
+        onMouseDown={(e) => (e.currentTarget.style.cursor = 'grabbing')}
+        onMouseUp={(e) => (e.currentTarget.style.cursor = 'grab')}
+      />
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(10, 14, 23, 0.8)',
+          zIndex: 20,
+          backdropFilter: 'blur(4px)',
         }}>
-          🧬 Visor 3D de Estructura Proteica
-        </h3>
-
-        {/* Controls */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {(['cartoon', 'stick', 'sphere'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => handleViewMode(mode)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 8,
-                border: viewMode === mode
-                  ? '1px solid var(--color-accent-cyan)'
-                  : '1px solid var(--color-border-secondary)',
-                background: viewMode === mode
-                  ? 'rgba(6, 182, 212, 0.15)'
-                  : 'transparent',
-                color: viewMode === mode
-                  ? 'var(--color-text-accent)'
-                  : 'var(--color-text-muted)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-sans)',
-                textTransform: 'capitalize',
-              }}
-            >
-              {mode}
-            </button>
-          ))}
-          <button onClick={handleSpin} className="btn-secondary" style={{
-            padding: '5px 12px',
-            fontSize: 12,
-            borderRadius: 8,
-          }}>
-            {isSpinning ? '⏸ Parar' : '🔄 Girar'}
-          </button>
-          <button onClick={handleReset} className="btn-secondary" style={{
-            padding: '5px 12px',
-            fontSize: 12,
-            borderRadius: 8,
-          }}>
-            ↩ Reset
-          </button>
+          <div className="animate-pulse-glow" style={{
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            border: '4px solid var(--color-accent-cyan)',
+            borderTopColor: 'transparent',
+            animation: 'spin-slow 1s linear infinite',
+          }} />
         </div>
+      )}
+
+      {/* HUD - Top Controls */}
+      <div className="animate-fade-in-up" style={{
+        position: 'absolute',
+        top: 24,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+        background: 'var(--color-bg-glass)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid var(--color-border-secondary)',
+        borderRadius: 100,
+        padding: '6px',
+        display: 'flex',
+        gap: 6,
+        boxShadow: 'var(--shadow-card)',
+      }}>
+        {(['cartoon', 'stick', 'sphere'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => handleViewMode(mode)}
+            style={{
+              padding: '6px 16px',
+              borderRadius: 100,
+              border: viewMode === mode ? '1px solid var(--color-accent-cyan)' : '1px solid transparent',
+              background: viewMode === mode ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+              color: viewMode === mode ? 'white' : 'var(--color-text-muted)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              textTransform: 'capitalize',
+              transition: 'all 0.2s',
+            }}
+          >
+            {mode}
+          </button>
+        ))}
+        <div style={{ width: 1, background: 'var(--color-border-secondary)', margin: '0 4px' }} />
+        <button onClick={handleSpin} style={{
+          padding: '6px 16px',
+          borderRadius: 100,
+          border: '1px solid transparent',
+          background: isSpinning ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+          color: 'var(--color-text-primary)',
+          fontSize: 13,
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+        }}>
+          {isSpinning ? '⏸ Parar' : '↻ Girar'}
+        </button>
+        <button onClick={handleReset} style={{
+          padding: '6px 16px',
+          borderRadius: 100,
+          border: '1px solid transparent',
+          background: 'transparent',
+          color: 'var(--color-text-primary)',
+          fontSize: 13,
+          cursor: 'pointer',
+        }}>
+          🏠 Reset
+        </button>
       </div>
 
-      {/* 3D Viewer */}
-      <div style={{ position: 'relative' }}>
-        {isLoading && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--color-bg-primary)',
-            zIndex: 10,
-          }}>
-            <div className="animate-pulse-glow" style={{
-              width: 60,
-              height: 60,
-              borderRadius: '50%',
-              border: '3px solid var(--color-accent-cyan)',
-              borderTopColor: 'transparent',
-              animation: 'spin-slow 1s linear infinite',
-            }} />
-          </div>
-        )}
-        <div
-          ref={containerRef}
-          style={{
-            width: '100%',
-            height: 450,
-            background: 'var(--color-bg-primary)',
-          }}
-        />
-      </div>
-
-      {/* pLDDT Legend */}
-      <div style={{
-        padding: '14px 20px',
-        borderTop: '1px solid var(--color-border-secondary)',
-        background: 'rgba(0, 0, 0, 0.2)',
+      {/* HUD - Bottom Legend */}
+      <div className="animate-fade-in-up" style={{
+        position: 'absolute',
+        bottom: 24,
+        left: 24,
+        zIndex: 10,
+        background: 'var(--color-bg-glass)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid var(--color-border-secondary)',
+        borderRadius: 12,
+        padding: '16px 20px',
+        boxShadow: 'var(--shadow-card)',
       }}>
         <p style={{
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 600,
           color: 'var(--color-text-secondary)',
-          marginBottom: 8,
+          marginBottom: 12,
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
         }}>
-          Escala de confianza pLDDT (AlphaFold2)
+          Confianza AlphaFold2 (pLDDT)
         </p>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {PLDDT_LEGEND.map(({ label, color }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 14,
-                height: 14,
-                borderRadius: 3,
-                background: color,
-                flexShrink: 0,
-              }} />
-              <span style={{
-                fontSize: 11,
-                color: 'var(--color-text-secondary)',
-              }}>
-                {label}
-              </span>
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: color }} />
+              <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{label}</span>
             </div>
           ))}
         </div>

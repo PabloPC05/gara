@@ -43,7 +43,7 @@ export default function App() {
 
       // 2. Poll until completed
       const finalStatus = await pollJobStatus(submitRes.job_id, {
-        intervalMs: 3000,
+        intervalMs: 2500,
         onStatusChange: (s) => {
           setJobStatus(s);
           setCurrentStatus(s.status);
@@ -76,206 +76,184 @@ export default function App() {
   };
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* ─── Header ─── */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', width: '100vw', overflow: 'hidden' }}>
+      
+      {/* ─── Global Top Bar ─── */}
       <header style={{
-        padding: '16px 24px',
+        padding: '12px 24px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderBottom: '1px solid var(--color-border-secondary)',
-        background: 'var(--color-bg-glass)',
-        backdropFilter: 'blur(16px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
+        background: 'var(--color-bg-secondary)',
+        flexShrink: 0,
+        zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
             background: 'linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-violet))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 18,
+            fontSize: 16,
           }}>
             🧬
           </div>
           <div>
-            <h1 style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              letterSpacing: '-0.02em',
-              lineHeight: 1.2,
-              margin: 0,
-            }}>
-              LocalFold
+            <h1 style={{ fontSize: 16, fontWeight: 700, color: 'white', margin: 0 }}>
+              LocalFold Workstation
             </h1>
-            <p style={{
-              fontSize: 11,
-              color: 'var(--color-text-muted)',
-              margin: 0,
-            }}>
-              Powered by CESGA Finis Terrae III
-            </p>
           </div>
         </div>
 
-        {appState !== 'idle' && (
-          <button onClick={handleReset} className="btn-secondary" style={{
-            padding: '6px 16px',
-            fontSize: 13,
-          }}>
-            ← Nuevo análisis
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {appState !== 'idle' && (
+            <button onClick={handleReset} className="btn-secondary" style={{ padding: '6px 14px', fontSize: 13 }}>
+              + Nuevo Análisis
+            </button>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+            CESGA Finis Terrae III
+          </span>
+        </div>
       </header>
 
-      {/* ─── Main Content ─── */}
-      <main style={{
-        flex: 1,
-        maxWidth: 1100,
-        width: '100%',
-        margin: '0 auto',
-        padding: '32px 20px 60px',
-      }}>
-        {/* Hero section — only when idle */}
-        {appState === 'idle' && (
-          <div className="animate-fade-in-up" style={{
-            textAlign: 'center',
-            marginBottom: 40,
-          }}>
-            <div style={{
-              display: 'inline-block',
-              padding: '6px 16px',
-              borderRadius: 100,
-              background: 'rgba(6, 182, 212, 0.1)',
-              border: '1px solid rgba(6, 182, 212, 0.2)',
-              fontSize: 12,
-              color: 'var(--color-text-accent)',
-              fontWeight: 500,
-              marginBottom: 20,
-            }}>
-              🏆 BioHack — Cátedra Camelia · Hackathon 2026
-            </div>
-            <h2 style={{
-              fontSize: 'clamp(28px, 4vw, 44px)',
-              fontWeight: 800,
-              lineHeight: 1.15,
-              letterSpacing: '-0.03em',
-              marginBottom: 16,
-              color: 'var(--color-text-primary)',
-            }}>
-              Predice la estructura 3D<br />
-              <span style={{
-                background: 'linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-violet))',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}>
-                de cualquier proteína
-              </span>
-            </h2>
-            <p style={{
-              fontSize: 16,
-              color: 'var(--color-text-secondary)',
-              maxWidth: 560,
-              margin: '0 auto',
-              lineHeight: 1.6,
-            }}>
-              Envía tu secuencia FASTA y deja que <strong style={{ color: 'var(--color-text-accent)' }}>AlphaFold2</strong>
-              {' '}en el supercomputador del CESGA prediga su estructura tridimensional con métricas de confianza.
-            </p>
-          </div>
-        )}
+      {/* ─── Main IDE Layout ─── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        
+        {/* ─── Left Sidebar (Input & Job Tracking) ─── */}
+        <aside className="scroll-panel" style={{
+          width: 400,
+          flexShrink: 0,
+          borderRight: '1px solid var(--color-border-secondary)',
+          background: 'var(--color-bg-secondary)',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 10,
+          boxShadow: '10px 0 30px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
+            {/* Hero / Information (Only visible if not running) */}
+            {appState === 'idle' && (
+              <div className="animate-fade-in-up" style={{ paddingBottom: 16, borderBottom: '1px solid var(--color-border-secondary)' }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: 100,
+                  background: 'rgba(6, 182, 212, 0.1)',
+                  border: '1px solid rgba(6, 182, 212, 0.2)',
+                  fontSize: 11,
+                  color: 'var(--color-text-accent)',
+                  fontWeight: 600,
+                  marginBottom: 16,
+                }}>
+                  🏆 BioHack 2026
+                </div>
+                <h2 style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2, color: 'white', marginBottom: 12 }}>
+                  Predicción 3D de Estructuras Proteicas
+                </h2>
+                <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Introduce tu secuencia FASTA y visualízala en 3D usando el poder de AlphaFold2 en el CESGA.
+                </p>
+              </div>
+            )}
 
-        {/* FASTA Form — visible when idle or submitting */}
-        {(appState === 'idle' || appState === 'submitting') && (
-          <div className="glass-card" style={{ padding: '28px 24px' }}>
-            <FastaForm
-              onSubmit={handleSubmit}
-              isSubmitting={appState === 'submitting'}
-            />
-          </div>
-        )}
-
-        {/* Job Tracker — visible during polling and results */}
-        {(appState === 'polling' || appState === 'results' || appState === 'error') && (
-          <JobTracker
-            status={jobStatus}
-            currentStatus={currentStatus}
-          />
-        )}
-
-        {/* Error state */}
-        {appState === 'error' && error && (
-          <div className="glass-card animate-fade-in-up" style={{
-            padding: 24,
-            textAlign: 'center',
-            marginTop: 20,
-          }}>
-            <p style={{ fontSize: 40, marginBottom: 12 }}>⚠️</p>
-            <p style={{ color: 'var(--color-accent-rose)', fontWeight: 600, fontSize: 16 }}>
-              {error}
-            </p>
-            <button onClick={handleReset} className="btn-primary" style={{ marginTop: 20 }}>
-              🔄 Intentar de nuevo
-            </button>
-          </div>
-        )}
-
-        {/* Results — 3D viewer and metrics */}
-        {appState === 'results' && outputs && (
-          <div style={{ marginTop: 24 }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr)',
-              gap: 24,
-            }}>
-              {/* 3D Viewer */}
-              <ProteinViewer
-                pdbData={outputs.structural_data.pdb_file}
-                plddtScores={outputs.structural_data.confidence as any}
+            {/* Fasta Form (Hidden if polling or results) */}
+            {(appState === 'idle' || appState === 'submitting') && (
+              <FastaForm
+                onSubmit={handleSubmit}
+                isSubmitting={appState === 'submitting'}
               />
+            )}
 
-              {/* Metrics Dashboard */}
+            {/* Job Tracker */}
+            {(appState === 'polling' || appState === 'results' || appState === 'error') && (
+              <JobTracker
+                status={jobStatus}
+                currentStatus={currentStatus}
+              />
+            )}
+
+            {/* Error Message */}
+            {appState === 'error' && error && (
+              <div className="animate-fade-in-up" style={{
+                padding: 16,
+                borderRadius: 12,
+                background: 'rgba(244, 63, 94, 0.1)',
+                border: '1px solid rgba(244, 63, 94, 0.3)',
+              }}>
+                <p style={{ color: 'var(--color-accent-rose)', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
+                  ⚠️ Error en el procesamiento
+                </p>
+                <p style={{ color: 'var(--color-text-primary)', fontSize: 13 }}>{error}</p>
+                <button onClick={handleReset} className="btn-secondary" style={{ marginTop: 16, width: '100%' }}>
+                  🔄 Reintentar
+                </button>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* ─── Center Main (3D Viewer) ─── */}
+        <main style={{
+          flex: 1,
+          position: 'relative',
+          background: 'var(--color-bg-primary)',
+          overflow: 'hidden',
+        }}>
+          {appState === 'results' && outputs ? (
+            <ProteinViewer pdbData={outputs.structural_data.pdb_file} />
+          ) : (
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--color-text-muted)'
+            }}>
+              {appState === 'polling' ? (
+                <>
+                   <div className="animate-pulse-glow" style={{
+                      width: 80, height: 80, borderRadius: '50%',
+                      border: '4px solid var(--color-border-secondary)',
+                      borderTopColor: 'var(--color-accent-cyan)',
+                      animation: 'spin-slow 1s linear infinite',
+                      marginBottom: 24
+                   }} />
+                   <h2 style={{ fontSize: 20, fontWeight: 500, color: 'var(--color-text-primary)' }}>Simulando en CESGA...</h2>
+                   <p style={{ marginTop: 8, fontSize: 14 }}>Calculando pliegues multidimensionales de la secuencia</p>
+                </>
+              ) : (
+                <>
+                   <div style={{ fontSize: 64, marginBottom: 24, opacity: 0.3 }}>🧊</div>
+                   <h2 style={{ fontSize: 24, fontWeight: 600, color: 'var(--color-border-secondary)' }}>Mol* Engine Ready</h2>
+                   <p style={{ marginTop: 8, fontSize: 15 }}>Envía un trabajo para iniciar la visualización en pantalla completa.</p>
+                </>
+              )}
+            </div>
+          )}
+        </main>
+
+        {/* ─── Right Sidebar (Metrics Dashboard) ─── */}
+        {appState === 'results' && outputs && (
+          <aside className="scroll-panel" style={{
+            width: 440,
+            flexShrink: 0,
+            borderLeft: '1px solid var(--color-border-secondary)',
+            background: 'var(--color-bg-secondary)',
+            zIndex: 10,
+            boxShadow: '-10px 0 30px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ padding: 24 }}>
               <MetricsDashboard
                 biologicalData={outputs.biological_data}
                 proteinMetadata={outputs.protein_metadata}
                 structuralData={outputs.structural_data}
               />
             </div>
-          </div>
+          </aside>
         )}
-      </main>
-
-      {/* ─── Footer ─── */}
-      <footer style={{
-        padding: '20px 24px',
-        borderTop: '1px solid var(--color-border-secondary)',
-        textAlign: 'center',
-        fontSize: 12,
-        color: 'var(--color-text-muted)',
-      }}>
-        <p>
-          LocalFold · BioHack 2026 · Impulsado por{' '}
-          <a
-            href="https://www.cesga.es"
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: 'var(--color-text-accent)', textDecoration: 'none' }}
-          >
-            CESGA Finis Terrae III
-          </a>
-          {' '}y AlphaFold2
-        </p>
-      </footer>
+      </div>
     </div>
   );
 }
