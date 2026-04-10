@@ -1,16 +1,16 @@
 import * as React from "react"
+import * as AvatarPrimitive from "@radix-ui/react-avatar"
 import { cn } from "@/lib/utils"
 
 function Avatar({
   className,
   size = "default",
-  children,
   ...props
-}: React.ComponentProps<"span"> & {
+}: React.ComponentProps<typeof AvatarPrimitive.Root> & {
   size?: "default" | "sm" | "lg"
 }) {
   return (
-    <span
+    <AvatarPrimitive.Root
       data-slot="avatar"
       data-size={size}
       className={cn(
@@ -18,26 +18,18 @@ function Avatar({
         className
       )}
       {...props}
-    >
-      {children}
-    </span>
+    />
   )
 }
 
 function AvatarImage({
   className,
   ...props
-}: React.ComponentProps<"img">) {
+}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
   return (
-    <img
+    <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn(
-        "aspect-square size-full rounded-full object-cover",
-        className
-      )}
-      onError={(event) => {
-        event.currentTarget.style.display = "none"
-      }}
+      className={cn("aspect-square size-full object-cover", className)}
       {...props}
     />
   )
@@ -46,12 +38,12 @@ function AvatarImage({
 function AvatarFallback({
   className,
   ...props
-}: React.ComponentProps<"span">) {
+}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
   return (
-    <span
+    <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "absolute inset-0 flex size-full items-center justify-center rounded-full bg-slate-200 text-sm text-slate-600 group-data-[size=sm]/avatar:text-xs",
+        "flex size-full items-center justify-center rounded-full bg-slate-200 text-sm text-slate-600 group-data-[size=sm]/avatar:text-xs",
         className
       )}
       {...props}

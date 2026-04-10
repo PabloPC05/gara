@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { mockPredictionResult, mockLogs } from '../data/mockData'
+import { mockPredictionResult, mockLogs } from '../../data/mockData'
 
 // Estados posibles del job
 const STAGES = [

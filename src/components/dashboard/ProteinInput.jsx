@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UBIQUITIN_SEQUENCE } from '../data/mockData'
+import { UBIQUITIN_SEQUENCE } from '../../data/mockData'
 
 function validateFASTA(seq) {
   const trimmed = seq.trim()

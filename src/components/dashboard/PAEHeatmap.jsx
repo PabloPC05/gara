@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { mockPAEMatrix } from '../data/mockData'
+import { mockPAEMatrix } from '../../data/mockData'
 
 // Interpola un color según el valor PAE:
 // 0 Å → verde oscuro | 15 Å → amarillo | 30 Å → rojo

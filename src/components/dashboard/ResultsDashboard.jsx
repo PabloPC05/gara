@@ -1,4 +1,4 @@
-import MolecularViewer from './MolecularViewer'
+import MolecularViewer from '../molecular/MolecularViewer'
 import PLDDTPanel from './PLDDTPanel'
 import PAEHeatmap from './PAEHeatmap'
 import BiologicalCards from './BiologicalCards'
