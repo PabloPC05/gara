@@ -2,5 +2,16 @@ node_modules
 dist
 .env
 .DS_Store
+<<<<<<< HEAD
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Easy
+.env
+=======
 *.log
 .agents
+>>>>>>> main
