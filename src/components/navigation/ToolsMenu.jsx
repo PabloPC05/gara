@@ -1,5 +1,4 @@
 import React from 'react'
-import { Ruler, Layers, Crosshair, Atom, Hexagon } from 'lucide-react'
 import {
   MenubarMenu,
   MenubarContent,
@@ -7,34 +6,29 @@ import {
   MenubarLabel,
   MenubarSeparator,
   MenubarTrigger,
-  MenubarShortcut,
-  MenubarRadioGroup,
-  MenubarRadioItem,
 } from "../ui/menubar"
 
 export function ToolsMenu() {
+  const itemClass = "text-xs text-slate-300 hover:bg-white/10 focus:bg-white/10 hover:text-white focus:text-white rounded-lg px-2 py-1.5 cursor-pointer"
+
   return (
     <MenubarMenu>
       <MenubarTrigger>Análisis</MenubarTrigger>
-      <MenubarContent className="w-64 bg-[#1e1e22] border border-[#2e2e33] rounded-xl p-1.5 shadow-2xl shadow-black/40">
-        <MenubarItem className="text-slate-200 hover:bg-white/8 focus:bg-white/8">
-          <Ruler className="h-4 w-4 text-sky-400" /> Medir Distancias
-          <MenubarShortcut>M</MenubarShortcut>
+      <MenubarContent className="w-64 bg-[#111113] border border-white/10 shadow-2xl backdrop-blur-md rounded-xl p-1.5">
+        <MenubarItem className={itemClass}>
+          Medir Distancias
         </MenubarItem>
-        <MenubarItem className="text-slate-200 hover:bg-white/8 focus:bg-white/8">
-          <Layers className="h-4 w-4 text-indigo-400" /> Superponer Estructuras
-          <MenubarShortcut>S</MenubarShortcut>
+        <MenubarItem className={itemClass}>
+          Superponer Estructuras
         </MenubarItem>
-        <MenubarSeparator className="bg-white/6" />
-        <MenubarLabel className="text-slate-500">Modo de Selección</MenubarLabel>
-        <MenubarRadioGroup value="residues">
-          <MenubarRadioItem value="atoms" className="text-slate-200 hover:bg-white/8 focus:bg-white/8">
-            <Atom className="h-4 w-4 text-slate-400" /> Átomos
-          </MenubarRadioItem>
-          <MenubarRadioItem value="residues" className="text-slate-200 hover:bg-white/8 focus:bg-white/8">
-            <Hexagon className="h-4 w-4 text-blue-400" /> Residuos
-          </MenubarRadioItem>
-        </MenubarRadioGroup>
+        <MenubarSeparator className="bg-white/10 mx-1" />
+        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Modo de Selección</MenubarLabel>
+        <MenubarItem className={itemClass}>
+          Átomos
+        </MenubarItem>
+        <MenubarItem className={itemClass}>
+          Residuos
+        </MenubarItem>
       </MenubarContent>
     </MenubarMenu>
   )
