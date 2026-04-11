@@ -9,4 +9,8 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // Mol* uses dynamic imports and import.meta.url — exclude from Vite pre-bundling
+    exclude: ['molstar'],
+  },
 })

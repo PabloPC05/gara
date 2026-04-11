@@ -1,46 +1,57 @@
-import { Beaker } from 'lucide-react'
+import { Beaker, ArrowLeftRight } from 'lucide-react'
 import { SectionLabel } from './SectionLabel'
 
-const numberFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
-const decimalFormat = new Intl.NumberFormat('es-ES', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-const integerFormat = new Intl.NumberFormat('es-ES')
+const numFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
+const intFmt = new Intl.NumberFormat('es-ES')
 
-export function PhysicalPropertiesCard({ biological }) {
+export function PhysicalPropertiesCard({ protein }) {
+  const seqProps = protein._raw?.sequence_properties
+  const fallbackBio = protein.biological
+
+  const length = seqProps?.length ?? protein.length ?? 0
+  const mwKda = seqProps?.molecular_weight_kda ?? (fallbackBio?.molecularWeight ? fallbackBio.molecularWeight / 1000 : 0)
+  const posCharges = seqProps?.positive_charges ?? fallbackBio?.positiveCharges ?? 0
+  const negCharges = seqProps?.negative_charges ?? fallbackBio?.negativeCharges ?? 0
+  const cysteines = seqProps?.cysteine_residues ?? fallbackBio?.cysteineResidues ?? 0
+  const chargeBalance = posCharges - negCharges
+
   const properties = [
-    {
-      label: 'Peso molecular',
-      value: `${numberFormat.format(biological.molecularWeight)} Da`,
-    },
-    {
-      label: 'Punto isoeléctrico',
-      value: decimalFormat.format(biological.isoelectricPoint),
-    },
-    {
-      label: 'Vida media',
-      value: biological.halfLife,
-    },
-    {
-      label: 'Coef. extinción',
-      value: `${integerFormat.format(biological.extinctionCoefficient)} M⁻¹cm⁻¹`,
-    },
+    { label: 'Longitud', value: `${intFmt.format(length)} aa` },
+    { label: 'Peso molecular', value: `${numFmt.format(mwKda)} kDa` },
+    { label: 'Cargas (+)', value: intFmt.format(posCharges), highlight: 'text-blue-600' },
+    { label: 'Cargas (−)', value: intFmt.format(negCharges), highlight: 'text-rose-500' },
+    { label: 'Balance neto', value: `${chargeBalance > 0 ? '+' : ''}${chargeBalance}`, icon: ArrowLeftRight },
+    { label: 'Cisteínas', value: intFmt.format(cysteines), hint: cysteines > 0 ? 'Posibles puentes S-S' : null },
   ]
 
   return (
     <section>
       <SectionLabel icon={Beaker}>Propiedades físicas</SectionLabel>
-      <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2">
-        <dl className="divide-y divide-slate-100">
-          {properties.map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between px-3 py-2.5">
-              <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+      <div className="rounded-xl border border-slate-200/60 bg-white/60 backdrop-blur-sm overflow-hidden">
+        <dl>
+          {properties.map(({ label, value, highlight, icon: ItemIcon, hint }, i) => (
+            <div
+              key={label}
+              className={`flex items-center justify-between px-4 py-2.5 ${
+                i < properties.length - 1 ? 'border-b border-slate-100' : ''
+              }`}
+            >
+              <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                {ItemIcon && <ItemIcon className="h-3 w-3 text-slate-300" strokeWidth={2} />}
                 {label}
               </dt>
-              <dd className="text-[12px] font-black tabular-nums text-slate-900">
-                {value}
-              </dd>
+              <div className="flex items-center gap-2">
+                <dd
+                  className={`text-[12px] font-black tabular-nums ${
+                    highlight || 'text-slate-800'
+                  }`}
+                >
+                  {value}
+                </dd>
+                {hint && (
+                  <span className="text-[9px] text-slate-400 font-medium">{hint}</span>
+                )}
+              </div>
             </div>
           ))}
         </dl>

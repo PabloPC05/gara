@@ -52,7 +52,7 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
         {needsNavigation && (
           <div className="mt-3 flex items-center gap-1.5">
             {proteins.map((_, i) => {
-              const isVisible = i >= safeStart && i < safeStart + VISIBLE_COUNT
+              const isVisible = i >= safeStart && i < safeStart + visibleCount
               return (
                 <span
                   key={i}
@@ -68,7 +68,7 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
 
       <div className="relative flex-1 overflow-hidden">
         <div
-          className="grid h-full divide-x divide-slate-100 overflow-y-auto"
+          className="grid h-full divide-x divide-slate-100 overflow-y-auto minimal-scrollbar"
           style={gridStyle}
         >
           {visible.map((protein) => (

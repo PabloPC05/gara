@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useProteinLoader } from './useProteinLoader'
+import { MOCK_HELIX_LAYOUTS } from '@/data/mockProteinCatalog'
 
 const VALID_AMINO_ACIDS = new Set('GAVLIMFWPSTCYNQDEKRH'.split(''))
 const PDB_ID_PATTERN = /^[0-9][a-zA-Z0-9]{3}$/
@@ -20,51 +21,90 @@ export const isValidEntry = (value) => {
   return PDB_ID_PATTERN.test(trimmed) || isValidSequence(trimmed)
 }
 
-const createEntry = (value = '') => ({ id: crypto.randomUUID(), value })
+const toEntrySignature = (value = '') => value.trim().toUpperCase()
 
-// Una entrada por cada hélice del mock (MolecularUniverseMock.HELICES).
-// Cuando conectes proteínas reales, sustitúyelo por la lista canónica.
+const createEntry = ({ value = '', proteinId = null, submittedSignature = null } = {}) => ({
+  id: crypto.randomUUID(),
+  value,
+  proteinId,
+  submittedSignature,
+})
+
 const INITIAL_ENTRY_COUNT = 3
 
-const createInitialEntries = () =>
-  Array.from({ length: INITIAL_ENTRY_COUNT }, () => createEntry())
+const createInitialEntries = (isMock) => {
+  if (isMock) {
+    return MOCK_HELIX_LAYOUTS.map((layout) => createEntry({ proteinId: layout.id }))
+  }
+  return Array.from({ length: INITIAL_ENTRY_COUNT }, () => createEntry())
+}
 
 /**
  * Estado y operaciones de la lista de entradas híbridas del sidebar.
  * Sólo permite añadir una nueva entrada si todas las existentes son válidas.
  */
 export function useCommandEntries() {
-  const [entries, setEntries] = useState(createInitialEntries)
-  const [focusedId, setFocusedId] = useState(() => entries[0].id)
   const { load, isMock } = useProteinLoader()
-  // IDs de entrada cuyo valor ya disparó un submit contra la API: evita
-  // relanzar jobs cuando el usuario pulsa + varias veces o reenfoca.
-  const submittedRef = useRef(new Set())
+  const [entries, setEntries] = useState(() => createInitialEntries(isMock))
+  const [focusedId, setFocusedId] = useState(() => entries[0]?.id ?? null)
+  const inFlightByEntryIdRef = useRef(new Set())
 
   const updateEntry = useCallback((id, value) => {
-    setEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, value } : entry)))
+    const nextSignature = toEntrySignature(value)
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== id) return entry
+        if (entry.submittedSignature && entry.submittedSignature !== nextSignature) {
+          return { ...entry, value, proteinId: null, submittedSignature: null }
+        }
+        return { ...entry, value }
+      }),
+    )
   }, [])
 
   const canAppend = useMemo(() => entries.every((entry) => isValidEntry(entry.value)), [entries])
 
   const appendEntry = useCallback(() => {
     if (!canAppend) return
-    // Modo real: lanza load() por cada entrada nueva que aún no se había
-    // enviado. Modo mock: isMock=true y load es no-op, así que nada pasa.
+
     if (!isMock) {
       for (const entry of entries) {
-        if (submittedRef.current.has(entry.id)) continue
-        submittedRef.current.add(entry.id)
-        load(entry.value).catch(() => {
-          // el error queda registrado en el store (errorById);
-          // aquí solo evitamos romper el flujo de append.
-        })
+        const signature = toEntrySignature(entry.value)
+        if (!signature) continue
+        if (inFlightByEntryIdRef.current.has(entry.id)) continue
+        if (entry.proteinId && entry.submittedSignature === signature) continue
+
+        inFlightByEntryIdRef.current.add(entry.id)
+        load(entry.value)
+          .then((proteinId) => {
+            if (!proteinId) return
+            setEntries((prev) =>
+              prev.map((current) => {
+                if (current.id !== entry.id) return current
+                if (toEntrySignature(current.value) !== signature) return current
+                return { ...current, proteinId, submittedSignature: signature }
+              }),
+            )
+          })
+          .catch(() => {
+            // el error queda registrado en el store (errorById);
+            // aquí solo evitamos romper el flujo de append.
+          })
+          .finally(() => {
+            inFlightByEntryIdRef.current.delete(entry.id)
+          })
       }
     }
-    const newEntry = createEntry()
-    setFocusedId(newEntry.id)
+
+    const nextMockProteinId = isMock ? MOCK_HELIX_LAYOUTS[entries.length]?.id ?? null : null
+    const newEntry = createEntry({ proteinId: nextMockProteinId })
     setEntries((prev) => [...prev, newEntry])
+    setFocusedId(newEntry.id)
   }, [canAppend, entries, isMock, load])
+
+  const focusEntry = useCallback((id) => {
+    setFocusedId(id)
+  }, [])
 
   return {
     entries,
@@ -72,6 +112,6 @@ export function useCommandEntries() {
     canAppend,
     updateEntry,
     appendEntry,
-    focusEntry: setFocusedId,
+    focusEntry,
   }
 }

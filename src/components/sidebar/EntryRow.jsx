@@ -3,6 +3,7 @@ import { SidebarHybridInput } from '../navigation/SidebarHybridInput'
 export function EntryRow({
   index,
   entry,
+  isSelectable,
   isFocused,
   isActive,
   canAppend,
@@ -19,16 +20,27 @@ export function EntryRow({
 
   const indexClass = isActive
     ? 'text-[#e31e24]'
-    : 'text-slate-200'
+    : isSelectable
+      ? 'text-slate-200'
+      : 'text-slate-300'
 
   return (
     <div
-      className={`relative flex items-center gap-1.5 rounded-2xl transition-colors cursor-pointer ${
-        isActive ? 'bg-[#fde8e8]/60' : 'bg-transparent hover:bg-slate-50'
+      className={`relative flex items-center gap-1.5 rounded-2xl transition-colors ${
+        isSelectable ? 'cursor-pointer' : 'cursor-default'
+      } ${
+        isActive
+          ? 'bg-[#fde8e8]/60'
+          : isSelectable
+            ? 'bg-transparent hover:bg-slate-50'
+            : 'bg-transparent'
       }`}
-      onClick={onActivate}
-      role="button"
-      tabIndex={-1}
+      onClick={(event) => {
+        if (!isSelectable) return
+        onActivate?.(event)
+      }}
+      role={isSelectable ? 'button' : undefined}
+      tabIndex={isSelectable ? -1 : undefined}
     >
       <span
         className={`shrink-0 w-4 text-right text-[9px] font-black tabular-nums select-none transition-colors ${indexClass}`}

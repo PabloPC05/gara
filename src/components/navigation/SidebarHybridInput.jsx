@@ -17,7 +17,7 @@ export function SidebarHybridInput({
         if (e.key === 'Enter') onSubmit?.()
       }}
       placeholder="PDB ID o secuencia..."
-      className={`w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-colors focus:border-blue-300 ${className || ''}`}
+      className={`w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-colors focus:border-blue-300 ${className || ''}`}
     />
   )
 }

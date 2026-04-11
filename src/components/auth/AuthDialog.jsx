@@ -16,7 +16,13 @@ export function AuthDialog({ open, onOpenChange }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [success, setSuccess] = useState('');
-  const { signIn, signUp, resetPassword, loading, error, clearError, user } = useAuthStore();
+  const signIn = useAuthStore((state) => state.signIn);
+  const signUp = useAuthStore((state) => state.signUp);
+  const resetPassword = useAuthStore((state) => state.resetPassword);
+  const loading = useAuthStore((state) => state.loading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     if (user && open) {

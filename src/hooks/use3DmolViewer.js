@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import * as $3Dmol from '3dmol'
 
 export function use3DmolViewer({ config, setup, deps = [] }) {
   const containerRef = useRef(null)
@@ -12,6 +11,13 @@ export function use3DmolViewer({ config, setup, deps = [] }) {
     if (!container) return
 
     mounted.current = true
+
+    const $3Dmol = window.$3Dmol
+    if (!$3Dmol) {
+      mounted.current = false
+      console.error('use3DmolViewer: window.$3Dmol not found — ensure the CDN script is loaded')
+      return
+    }
 
     let disposed = false
     const viewer = $3Dmol.createViewer(container, config)

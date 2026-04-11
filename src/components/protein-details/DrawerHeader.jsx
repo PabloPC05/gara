@@ -1,7 +1,14 @@
-import { Dna } from 'lucide-react'
+import { Dna, ExternalLink, FlaskConical } from 'lucide-react'
 import { Badge } from './Badge'
 
 export function DrawerHeader({ protein }) {
+  const meta = protein._raw?.protein_metadata
+  const name = meta?.protein_name || protein.name
+  const organism = meta?.organism || protein.organism
+  const uniprotId = meta?.uniprot_id || protein.uniprotId
+  const pdbId = meta?.pdb_id || protein.pdbId
+  const dataSource = meta?.data_source || (protein.source === 'mock' ? 'Simulación sintética' : 'AlphaFold DB')
+
   return (
     <header className="border-b border-slate-100 px-7 pt-8 pb-5">
       <div className="mb-3 flex items-center gap-3">
@@ -14,15 +21,33 @@ export function DrawerHeader({ protein }) {
       </div>
 
       <h2 className="text-2xl font-black leading-tight tracking-tight text-slate-900">
-        {protein.name}
+        {name}
       </h2>
       <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-        {protein.organism} · {protein.length} aa
+        <em>{organism}</em> · {protein.length ?? '—'} aa
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Badge tone="blue" label="UniProt" value={protein.uniprotId} />
-        <Badge tone="emerald" label="pLDDT" value={protein.plddtMean.toFixed(1)} />
+        {uniprotId && (
+          <Badge tone="blue" label="UniProt" value={uniprotId} />
+        )}
+        {pdbId && (
+          <Badge tone="blue" label="PDB" value={pdbId} />
+        )}
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+            protein.source === 'mock'
+              ? 'bg-violet-50 text-violet-700 border-violet-100'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+          }`}
+        >
+          {protein.source === 'mock' ? (
+            <FlaskConical className="h-3 w-3" strokeWidth={2.5} />
+          ) : (
+            <ExternalLink className="h-3 w-3" strokeWidth={2.5} />
+          )}
+          {dataSource}
+        </span>
       </div>
     </header>
   )

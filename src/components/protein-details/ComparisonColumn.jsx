@@ -8,15 +8,15 @@ export function ComparisonColumn({ protein }) {
       <div>
         <h3 className="text-sm font-black text-slate-900">{protein.name}</h3>
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          {protein.organism} · {protein.length} aa
+          <em>{protein.organism}</em> · {protein.length ?? '—'} aa
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <Badge tone="blue" label="UniProt" value={protein.uniprotId} />
-          <Badge tone="emerald" label="pLDDT" value={protein.plddtMean.toFixed(1)} />
+          <Badge tone="blue" label="UniProt" value={protein.uniprotId ?? '—'} />
+          <Badge tone="emerald" label="pLDDT" value={protein.plddtMean?.toFixed(1) ?? '—'} />
         </div>
       </div>
-      <BiologicalStatusCard biological={protein.biological} />
-      <PhysicalPropertiesCard biological={protein.biological} />
+      <BiologicalStatusCard protein={protein} />
+      <PhysicalPropertiesCard protein={protein} />
     </div>
   )
 }

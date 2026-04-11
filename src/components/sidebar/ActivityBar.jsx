@@ -11,7 +11,7 @@ export function ActivityBar() {
   };
 
   return (
-    <div className="flex flex-col items-center w-12 bg-[#18181b] border-r border-[#27272a] py-4 gap-4 z-50 h-screen flex-shrink-0">
+    <div className="flex flex-col items-center w-12 bg-black border-r border-[#27272a] py-4 gap-4 z-50 h-screen flex-shrink-0">
       <button 
         onClick={() => handleTabClick('plus')}
         className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${activeTab === 'plus' ? 'text-white border-[#e31e24]' : 'text-slate-400 hover:text-slate-200 border-transparent'}`}

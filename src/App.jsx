@@ -6,16 +6,19 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { MenuBar } from '@/components/navigation/FloatingNavbar'
 import { ActivityBar } from '@/components/sidebar/ActivityBar'
 import useAuthStore from './stores/useAuthStore'
+import { useUIStore } from './stores/useUIStore'
+
 export default function App() {
-  const { initializeAuth } = useAuthStore();
+  const initializeAuth = useAuthStore((state) => state.initializeAuth)
+  const sceneBackground = useUIStore((state) => state.sceneBackground)
 
   useEffect(() => {
-    const unsubscribe = initializeAuth();
-    return () => unsubscribe();
-  }, [initializeAuth]);
+    const unsubscribe = initializeAuth()
+    return () => unsubscribe()
+  }, [initializeAuth])
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#18181b]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-black">
       <MenuBar />
       <div className="flex flex-1 min-h-0">
         <ActivityBar />
@@ -28,25 +31,10 @@ export default function App() {
           >
             <CommandSidebar />
             <ProteinDetailsDrawer />
-            <SidebarInset className="relative bg-slate-50">
+            <SidebarInset className="relative transition-colors duration-300" style={{ backgroundColor: sceneBackground }}>
               <div className="relative h-full w-full overflow-hidden">
                 <div className="absolute inset-0 z-0">
-                  <MolecularScene background="#ffffff" />
-                </div>
-                {/* Floating Zoom Controls */}
-                <div className="absolute bottom-12 right-6 flex flex-col gap-2 z-50">
-                  <button 
-                    onClick={() => console.log('Zoom in')}
-                    className="w-10 h-10 flex items-center justify-center bg-[#18181b]/80 hover:bg-[#27272a] backdrop-blur text-white border border-slate-700/50 rounded-lg shadow-lg transition-colors"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                  </button>
-                  <button 
-                    onClick={() => console.log('Zoom out')}
-                    className="w-10 h-10 flex items-center justify-center bg-[#18181b]/80 hover:bg-[#27272a] backdrop-blur text-white border border-slate-700/50 rounded-lg shadow-lg transition-colors"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/></svg>
-                  </button>
+                  <MolecularScene background={sceneBackground} />
                 </div>
               </div>
             </SidebarInset>

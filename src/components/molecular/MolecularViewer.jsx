@@ -1,348 +1,418 @@
-import { useEffect, useRef } from 'react'
-import { use3DmolViewer } from '../../hooks/use3DmolViewer'
+/**
+ * MolecularViewer — integración Mol* como visor AlphaFold.
+ *
+ * Arquitectura:
+ *  - useMolstarViewer  → inicializa PluginContext en containerRef
+ *  - plddtColorTheme   → esquema de color AlphaFold exacto (#0053D6 / #65CBF3 / #FFE91E / #FF7D45)
+ *  - syncStructures    → reconcilia Map<id, entry> ↔ proteinsById del store
+ *  - hover subscription → tooltip de residuo + pLDDT
+ *  - mousedown/move    → picking propio + transformación por estructura (Ctrl+drag)
+ */
+
+import { useEffect, useRef, useState } from 'react'
+import { useMolstarViewer } from '../../hooks/useMolstarViewer'
+import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme'
 import { useProteinStore } from '../../stores/useProteinStore'
+import { useUIStore } from '../../stores/useUIStore'
 import ViewerCanvas from './ViewerCanvas'
 
-const HALO_COLOR = 0xfde047
+// ── Importaciones Mol* ────────────────────────────────────────────────────────
+import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure.js'
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms.js'
+import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js'
+import { Color } from 'molstar/lib/mol-util/color/index.js'
 
-// Radios de picking: idénticos al visor mock para coherencia UX.
-const PICK_BBOX_PADDING_PX = 10
-const PICK_NEAREST_FALLBACK_PX = 25
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const HALO_COLOR = Color(0xFDE047)  // amarillo selección
+const DRAG_SCALE = 0.004            // px → unidades mundo (se multiplica por camera.radius)
 
-// Paleta AlphaFold pLDDT — consistente con MetricsDashboard.
-const PLDDT_VERY_HIGH = 0x0053d6
-const PLDDT_HIGH = 0x65cbf3
-const PLDDT_MEDIUM = 0xffdb13
-const PLDDT_LOW = 0xff7d45
-
-const plddtColor = (b) => {
-  if (b > 90) return PLDDT_VERY_HIGH
-  if (b > 70) return PLDDT_HIGH
-  if (b > 50) return PLDDT_MEDIUM
-  return PLDDT_LOW
-}
-const plddtColorForAtom = (atom) => plddtColor(atom?.b ?? 0)
-
-const baseStyle = () => ({
-  cartoon: { colorfunc: plddtColorForAtom, opacity: 0.95, thickness: 0.6, style: 'edged' },
-  stick: { colorfunc: plddtColorForAtom, radius: 0.15, hidden: false },
-})
-
-const haloStyle = {
-  cartoon: { color: HALO_COLOR, opacity: 0.35 },
-  sphere: { color: HALO_COLOR, radius: 1.1, opacity: 0.25 },
-}
-
-const applyEntryStyle = (entry, isActive) => {
-  entry.model.setStyle({}, baseStyle())
-  if (isActive) entry.model.setStyle({}, haloStyle, true)
-}
-
-const computeCentroid = (model) => {
-  const atoms = model.selectedAtoms({})
-  if (atoms.length === 0) return { x: 0, y: 0, z: 0 }
-  let x = 0, y = 0, z = 0
-  for (const atom of atoms) {
-    x += atom.x
-    y += atom.y
-    z += atom.z
-  }
-  return { x: x / atoms.length, y: y / atoms.length, z: z / atoms.length }
-}
-
-const translateModelAtoms = (model, dx, dy, dz) => {
-  const atoms = model.selectedAtoms({})
-  for (const atom of atoms) {
-    atom.x += dx
-    atom.y += dy
-    atom.z += dz
-  }
+// ─── Presets de iluminación ───────────────────────────────────────────────────
+const LIGHTING_PRESETS = {
+  ao: {
+    postprocessing: {
+      occlusion: {
+        name: 'on',
+        params: {
+          samples: 32,
+          radius: 5,
+          bias: 0.8,
+          blurKernelSize: 15,
+          blurDepthBias: 0.5,
+          resolutionScale: 1,
+          color: Color(0x000000),
+          transparentThreshold: 0.4,
+          multiScale: { name: 'off', params: {} },
+        },
+      },
+      shadow: { name: 'off', params: {} },
+    },
+    renderer: { ambientIntensity: 0.9, lightIntensity: 0.4, metalness: 0, roughness: 1.0 },
+  },
+  flat: {
+    postprocessing: {
+      occlusion: { name: 'off', params: {} },
+      shadow: { name: 'off', params: {} },
+    },
+    renderer: { ambientIntensity: 1.0, lightIntensity: 0.0, metalness: 0, roughness: 1.0 },
+  },
+  studio: {
+    postprocessing: {
+      occlusion: { name: 'off', params: {} },
+      shadow: { name: 'off', params: {} },
+    },
+    renderer: { ambientIntensity: 0.6, lightIntensity: 0.8, metalness: 0, roughness: 0.8 },
+  },
 }
 
-// Rotación rígida: yaw en torno al eje Y del mundo, pitch en torno al X.
-// Preserva todas las distancias → la forma no se deforma, solo el ángulo.
-const rotateModelAroundCentroid = (model, c, yaw, pitch) => {
-  const atoms = model.selectedAtoms({})
-  const cy = Math.cos(yaw)
-  const sy = Math.sin(yaw)
-  const cp = Math.cos(pitch)
-  const sp = Math.sin(pitch)
-  for (const atom of atoms) {
-    let dx = atom.x - c.x
-    let dy = atom.y - c.y
-    let dz = atom.z - c.z
-    const rx = cy * dx + sy * dz
-    const rz = -sy * dx + cy * dz
-    dx = rx
-    dz = rz
-    const ry = cp * dy - sp * dz
-    const rz2 = sp * dy + cp * dz
-    dy = ry
-    dz = rz2
-    atom.x = c.x + dx
-    atom.y = c.y + dy
-    atom.z = c.z + dz
+// ─── Helpers de transformación de matriz ──────────────────────────────────────
+
+function rotMatY(a) {
+  const c = Math.cos(a), s = Math.sin(a)
+  return Mat4.ofRows([[ c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]])
+}
+
+function rotMatX(a) {
+  const c = Math.cos(a), s = Math.sin(a)
+  return Mat4.ofRows([[1,0,0,0],[0,c,-s,0],[0,s,c,0],[0,0,0,1]])
+}
+
+/** Yaw+pitch alrededor del centroide, acumulando sobre `mat`. */
+function applyRotation(mat, centroid, yaw, pitch) {
+  const [tx, ty, tz] = [centroid[0], centroid[1], centroid[2]]
+  const T  = Mat4.ofRows([[1,0,0, tx],[0,1,0, ty],[0,0,1, tz],[0,0,0,1]])
+  const Ti = Mat4.ofRows([[1,0,0,-tx],[0,1,0,-ty],[0,0,1,-tz],[0,0,0,1]])
+  const R  = Mat4.mul(Mat4(), rotMatX(pitch), rotMatY(yaw))
+  const delta = Mat4.mul(Mat4(), T, Mat4.mul(Mat4(), R, Ti))
+  Mat4.mul(mat, delta, mat)
+}
+
+/** Traslación alineada con los vectores cámara-right/up, acumulando sobre `mat`. */
+function applyTranslation(mat, right, up, dx, dy, scale) {
+  const wx = (right[0] * dx - up[0] * dy) * scale
+  const wy = (right[1] * dx - up[1] * dy) * scale
+  const wz = (right[2] * dx - up[2] * dy) * scale
+  const T  = Mat4.ofRows([[1,0,0,wx],[0,1,0,wy],[0,0,1,wz],[0,0,0,1]])
+  Mat4.mul(mat, T, mat)
+}
+
+// ─── Pipeline de carga de estructuras ────────────────────────────────────────
+
+/**
+ * Carga una cadena PDB/mmCIF en el state tree de Mol*:
+ *   rawData → trajectory → model → structure → TransformStructureConformation → repr
+ */
+async function loadStructureEntry(plugin, id, protein, reprType) {
+  const text   = protein.cifData ?? protein.pdbData
+  const format = protein.cifData ? 'mmcif' : 'pdb'
+
+  const dataRef = await plugin.builders.data.rawData({ data: text, label: id })
+  const traj    = await plugin.builders.structure.parseTrajectory(dataRef, format)
+  const model   = await plugin.builders.structure.createModel(traj)
+  const baseRef = await plugin.builders.structure.createStructure(model)
+
+  // Nodo de transformación (identidad inicial; se actualiza con drag)
+  const transformedRef = await plugin
+    .build()
+    .to(baseRef)
+    .apply(StateTransforms.Model.TransformStructureConformation, {
+      transform: { name: 'matrix', params: { data: Array.from(Mat4.identity()), transpose: false } },
+    })
+    .commit()
+
+  // Representación cartoon + tema de color pLDDT AlphaFold
+  const reprRef = await plugin.builders.structure.representation.addRepresentation(
+    transformedRef,
+    { type: reprType ?? 'cartoon', typeParams: { alpha: 1, quality: 'high' }, color: 'alphafold-plddt' }
+  )
+
+  // Centro geométrico para rotaciones
+  const structObj = plugin.state.data.cells.get(transformedRef.ref)?.obj?.data
+  const center    = structObj?.boundary?.sphere?.center
+  const centroid  = center ? Vec3.clone(center) : Vec3.create(0, 0, 0)
+
+  return { id, dataRef, baseRef, transformedRef, reprRef, haloReprRef: null, mat: Mat4.identity(), centroid }
+}
+
+/** Activa o desactiva el halo semitransparente amarillo de un entry. */
+async function setHalo(plugin, entry, active) {
+  if (active && !entry.haloReprRef) {
+    entry.haloReprRef = await plugin.builders.structure.representation.addRepresentation(
+      entry.transformedRef,
+      { type: 'cartoon', typeParams: { alpha: 0.35 }, color: 'uniform', colorParams: { value: HALO_COLOR } }
+    )
+  } else if (!active && entry.haloReprRef) {
+    await plugin.build().delete(entry.haloReprRef.ref).commit()
+    entry.haloReprRef = null
   }
 }
 
 /**
- * Sincroniza el Map de entries con el catálogo del store:
- *  - Quita los modelos cuya proteína ya no está en `proteinsById`.
- *  - Añade modelos nuevos para proteínas recién cargadas.
- * Devuelve `true` si hubo cambios, para disparar zoomTo desde fuera.
+ * Reconcilia Map<id,entry> con proteinsById:
+ * elimina huérfanos, añade nuevos.
  */
-function syncModels(viewer, modelMap, proteinsById, selectedIds) {
+async function syncStructures(plugin, entriesMap, proteinsById, selectedIds, reprType) {
   let dirty = false
-
-  for (const [id, entry] of modelMap) {
+  for (const [id, entry] of entriesMap) {
     if (!proteinsById[id]) {
-      try {
-        viewer.removeModel(entry.model)
-      } catch (_) {
-        // si el viewer ya descartó el modelo, ignoramos
-      }
-      modelMap.delete(id)
+      try { await plugin.build().delete(entry.dataRef.ref).commit() } catch (_) {}
+      entriesMap.delete(id)
       dirty = true
     }
   }
-
-  const ids = Object.keys(proteinsById)
-  for (const id of ids) {
-    if (modelMap.has(id)) continue
+  for (const id of Object.keys(proteinsById)) {
+    if (entriesMap.has(id)) continue
     const protein = proteinsById[id]
-    if (!protein?.pdbData) continue
-    const model = viewer.addModel(protein.pdbData, 'pdb')
-    const entry = { id, model }
-    applyEntryStyle(entry, selectedIds.includes(id))
-    modelMap.set(id, entry)
+    if (!protein?.pdbData && !protein?.cifData) continue
+    const entry = await loadStructureEntry(plugin, id, protein, reprType)
+    await setHalo(plugin, entry, selectedIds.includes(id))
+    entriesMap.set(id, entry)
     dirty = true
   }
-
   return dirty
 }
 
-export default function MolecularViewer({ background = '#ffffff' }) {
-  const proteinsById = useProteinStore((state) => state.proteinsById)
-  const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds)
-  const setSelectedProteinIds = useProteinStore((state) => state.setSelectedProteinIds)
-  const toggleProteinSelection = useProteinStore((state) => state.toggleProteinSelection)
-  const clearSelection = useProteinStore((state) => state.clearSelection)
+/** Escribe el mat4 acumulado en el nodo TransformStructureConformation del state tree. */
+async function commitTransform(plugin, entry) {
+  await plugin
+    .build()
+    .to(entry.transformedRef.ref)
+    .update(StateTransforms.Model.TransformStructureConformation, () => ({
+      transform: { name: 'matrix', params: { data: Array.from(entry.mat), transpose: false } },
+    }))
+    .commit()
+}
 
-  // Refs en vivo para que los listeners (registrados una vez) lean siempre
-  // el estado actual del store sin capturarlo por closure.
-  const selectedProteinIdsRef = useRef(selectedProteinIds)
-  useEffect(() => {
-    selectedProteinIdsRef.current = selectedProteinIds
-  }, [selectedProteinIds])
+/** Cambia el tipo de representación de todas las estructuras cargadas. */
+async function updateAllRepresentations(plugin, entriesMap, reprType) {
+  for (const [, entry] of entriesMap) {
+    await plugin
+      .build()
+      .to(entry.reprRef.ref)
+      .update(StateTransforms.Representation.StructureRepresentation3D, (old) => ({
+        ...old,
+        type: { name: reprType, params: old.type?.params ?? {} },
+      }))
+      .commit()
+  }
+}
 
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export default function MolecularViewer() {
+  const proteinsById           = useProteinStore((s) => s.proteinsById)
+  const selectedProteinIds     = useProteinStore((s) => s.selectedProteinIds)
+  const setSelectedProteinIds  = useProteinStore((s) => s.setSelectedProteinIds)
+  const toggleProteinSelection = useProteinStore((s) => s.toggleProteinSelection)
+  const clearSelection         = useProteinStore((s) => s.clearSelection)
+
+  const viewerRepresentation = useUIStore((s) => s.viewerRepresentation)
+  const viewerLighting       = useUIStore((s) => s.viewerLighting)
+  const sceneBackground      = useUIStore((s) => s.sceneBackground)
+
+  // Live refs para closures de event listeners
+  const selectedIdsRef  = useRef(selectedProteinIds)
   const proteinsByIdRef = useRef(proteinsById)
-  useEffect(() => {
-    proteinsByIdRef.current = proteinsById
-  }, [proteinsById])
+  const reprTypeRef     = useRef(viewerRepresentation)
+  useEffect(() => { selectedIdsRef.current  = selectedProteinIds }, [selectedProteinIds])
+  useEffect(() => { proteinsByIdRef.current = proteinsById }, [proteinsById])
+  useEffect(() => { reprTypeRef.current     = viewerRepresentation }, [viewerRepresentation])
 
-  // Map id → { model } con los modelos 3Dmol activos.
-  const modelsRef = useRef(new Map())
-  const dragStateRef = useRef(null)
+  const entriesRef = useRef(new Map())  // Map<id, entry>
+  const dragRef    = useRef(null)
 
-  const { containerRef, viewerRef } = use3DmolViewer({
-    config: { backgroundColor: background },
-    setup: (viewer) => {
-      syncModels(
-        viewer,
-        modelsRef.current,
-        proteinsByIdRef.current,
-        selectedProteinIdsRef.current,
+  const [tooltip, setTooltip] = useState(null)
+
+  // ── Inicialización del plugin ─────────────────────────────────────────────
+  const { containerRef, pluginRef } = useMolstarViewer({
+    setup: async (plugin) => {
+      // 1. Registrar el tema de color pLDDT AlphaFold en el registry
+      registerAlphafoldPlddtTheme(plugin)
+
+      // 2. Configurar Ambient Occlusion + renderer mate (sin brillos especulares)
+      plugin.canvas3d?.setProps({
+        ...LIGHTING_PRESETS.ao,
+        renderer: {
+          ...LIGHTING_PRESETS.ao.renderer,
+          backgroundColor: Color.fromHexStyle(sceneBackground),
+        },
+      })
+
+      // 3. Cargar estructuras ya presentes en el store al montar
+      const dirty = await syncStructures(
+        plugin, entriesRef.current,
+        proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
       )
-      viewer.zoomTo()
-      viewer.render()
-      viewer.resize()
+      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset()
+
+      // 4. Suscripción hover → tooltip de residuo + pLDDT
+      const hoverSub = plugin.behaviors.interaction.hover.subscribe(({ current, page }) => {
+        if (!current?.loci || current.loci.kind !== 'element-loci') {
+          setTooltip(null)
+          return
+        }
+        try {
+          const loc = StructureElement.Loci.getFirstLocation(current.loci)
+          if (!loc) { setTooltip(null); return }
+
+          const compId = StructureProperties.residue.auth_comp_id(loc)
+          const seqId  = StructureProperties.residue.auth_seq_id(loc)
+          const bfact  = StructureProperties.atom.B_iso_or_equiv(loc)
+
+          setTooltip({
+            label: `${compId} ${seqId}`,
+            plddt: bfact.toFixed(1),
+            x: page?.[0] ?? 0,
+            y: page?.[1] ?? 0,
+          })
+        } catch (_) {
+          setTooltip(null)
+        }
+      })
+
+      return () => hoverSub.unsubscribe()
     },
-    deps: [background],
+    deps: [],
   })
 
-  // Catálogo del store → escena: añade/quita modelos cuando cambia.
+  // ── Sync proteins store → escena Mol* ────────────────────────────────────
   useEffect(() => {
-    const viewer = viewerRef.current
-    if (!viewer) return
-    const dirty = syncModels(
-      viewer,
-      modelsRef.current,
-      proteinsById,
-      selectedProteinIdsRef.current,
-    )
-    if (dirty && modelsRef.current.size > 0) {
-      viewer.zoomTo()
-    }
-    viewer.render()
-  }, [proteinsById, viewerRef])
+    const plugin = pluginRef.current
+    if (!plugin) return
+    let cancelled = false
+    ;(async () => {
+      const dirty = await syncStructures(
+        plugin, entriesRef.current,
+        proteinsById, selectedIdsRef.current, reprTypeRef.current,
+      )
+      if (cancelled) return
+      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset()
+    })()
+    return () => { cancelled = true }
+  }, [proteinsById, pluginRef])
 
-  // Selección → escena: repinta halos sin tocar la geometría.
+  // ── Sync selección → halos ────────────────────────────────────────────────
   useEffect(() => {
-    const viewer = viewerRef.current
-    if (!viewer || modelsRef.current.size === 0) return
-    for (const [id, entry] of modelsRef.current) {
-      applyEntryStyle(entry, selectedProteinIds.includes(id))
-    }
-    viewer.render()
-  }, [selectedProteinIds, viewerRef])
+    const plugin = pluginRef.current
+    if (!plugin || entriesRef.current.size === 0) return
+    let cancelled = false
+    ;(async () => {
+      for (const [id, entry] of entriesRef.current) {
+        if (cancelled) return
+        await setHalo(plugin, entry, selectedProteinIds.includes(id))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selectedProteinIds, pluginRef])
 
+  // ── Fondo de escena ───────────────────────────────────────────────────────
+  useEffect(() => {
+    pluginRef.current?.canvas3d?.setProps({
+      renderer: { backgroundColor: Color.fromHexStyle(sceneBackground) },
+    })
+  }, [sceneBackground, pluginRef])
+
+  // ── Cambio de representación ──────────────────────────────────────────────
+  useEffect(() => {
+    const plugin = pluginRef.current
+    if (!plugin || entriesRef.current.size === 0) return
+    updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error)
+  }, [viewerRepresentation, pluginRef])
+
+  // ── Cambio de iluminación ─────────────────────────────────────────────────
+  useEffect(() => {
+    const plugin = pluginRef.current
+    if (!plugin) return
+    plugin.canvas3d?.setProps(LIGHTING_PRESETS[viewerLighting] ?? LIGHTING_PRESETS.ao)
+  }, [viewerLighting, pluginRef])
+
+  // ── Mouse picking + drag (Ctrl=rotate, plain=translate) ──────────────────
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    // `modelToScreen` devuelve coordenadas DE PÁGINA (incluye offset del
-    // canvas en el documento), así que comparamos con event.pageX/pageY.
-    const pickEntryAt = (pageX, pageY) => {
-      const viewer = viewerRef.current
-      if (!viewer) return null
-      const px = pageX
-      const py = pageY
-
-      const infos = []
-      for (const [, entry] of modelsRef.current) {
-        const atoms = entry.model.selectedAtoms({})
-        if (atoms.length === 0) continue
-
-        let minX = Infinity
-        let maxX = -Infinity
-        let minY = Infinity
-        let maxY = -Infinity
-        let minAtomDistSq = Infinity
-
-        for (const atom of atoms) {
-          const s = viewer.modelToScreen({ x: atom.x, y: atom.y, z: atom.z })
-          if (s.x < minX) minX = s.x
-          if (s.x > maxX) maxX = s.x
-          if (s.y < minY) minY = s.y
-          if (s.y > maxY) maxY = s.y
-          const ddx = s.x - px
-          const ddy = s.y - py
-          const d2 = ddx * ddx + ddy * ddy
-          if (d2 < minAtomDistSq) minAtomDistSq = d2
-        }
-        infos.push({ entry, minX, maxX, minY, maxY, minAtomDistSq })
+    /** Picking por píxel: devuelve el protein id o null. */
+    const pickAt = (clientX, clientY) => {
+      const plugin = pluginRef.current
+      if (!plugin?.canvas3d) return null
+      const rect = container.getBoundingClientRect()
+      const pick = plugin.canvas3d.identify({ x: clientX - rect.left, y: clientY - rect.top })
+      if (!pick) return null
+      const loci = plugin.canvas3d.getLoci(pick.id)
+      if (!loci || loci.kind !== 'element-loci') return null
+      const pickedModel = loci.structure?.model
+      for (const [id, entry] of entriesRef.current) {
+        const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data
+        if (s && (s === loci.structure || s.model === pickedModel)) return id
       }
-
-      if (infos.length === 0) return null
-
-      const pad = PICK_BBOX_PADDING_PX
-      const insideHits = infos.filter(
-        (h) =>
-          px >= h.minX - pad &&
-          px <= h.maxX + pad &&
-          py >= h.minY - pad &&
-          py <= h.maxY + pad,
-      )
-      if (insideHits.length > 0) {
-        insideHits.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
-        return insideHits[0].entry
-      }
-
-      infos.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
-      const nearest = infos[0]
-      const maxSq = PICK_NEAREST_FALLBACK_PX * PICK_NEAREST_FALLBACK_PX
-      return nearest.minAtomDistSq <= maxSq ? nearest.entry : null
+      return null
     }
 
-    const computeScreenBasis = () => {
-      const viewer = viewerRef.current
-      if (!viewer) return null
-      const origin = viewer.modelToScreen({ x: 0, y: 0, z: 0 })
-      const xAxis = viewer.modelToScreen({ x: 1, y: 0, z: 0 })
-      const yAxis = viewer.modelToScreen({ x: 0, y: 1, z: 0 })
-      return {
-        a: xAxis.x - origin.x,
-        b: yAxis.x - origin.x,
-        c: xAxis.y - origin.y,
-        d: yAxis.y - origin.y,
-      }
-    }
-
-    const screenDeltaToWorld = (dxPx, dyPx, basis) => {
-      const { a, b, c, d } = basis
-      const det = a * d - b * c
-      if (Math.abs(det) < 1e-6) return { x: 0, y: 0 }
-      return {
-        x: (d * dxPx - b * dyPx) / det,
-        y: (-c * dxPx + a * dyPx) / det,
-      }
+    /** Vectores cámara en espacio mundo para traslación alineada. */
+    const getCameraAxes = () => {
+      const cam = pluginRef.current?.canvas3d?.camera
+      if (!cam) return null
+      const inv = Mat4.invert(Mat4(), cam.view)
+      if (!inv) return null
+      const right = Vec3.normalize(Vec3(), Vec3.create(inv[0], inv[1], inv[2]))
+      const up    = Vec3.normalize(Vec3(), Vec3.create(inv[4], inv[5], inv[6]))
+      return { right, up }
     }
 
     const handleMouseDown = (event) => {
       if (event.button !== 0) return
-      const hit = pickEntryAt(event.pageX, event.pageY)
-
-      if (!hit) {
-        clearSelection()
-        return
-      }
+      const hitId = pickAt(event.clientX, event.clientY)
+      if (!hitId) { clearSelection(); return }
 
       event.stopImmediatePropagation()
       event.preventDefault()
 
-      // Ctrl + click sobre una seleccionada → rotación rígida en sitio.
-      if (event.ctrlKey && selectedProteinIdsRef.current.includes(hit.id)) {
-        dragStateRef.current = {
-          mode: 'rotate',
-          id: hit.id,
-          centroid: computeCentroid(hit.model),
-          lastX: event.clientX,
-          lastY: event.clientY,
+      if (event.ctrlKey && selectedIdsRef.current.includes(hitId)) {
+        const entry = entriesRef.current.get(hitId)
+        dragRef.current = {
+          mode: 'rotate', id: hitId,
+          centroid: entry?.centroid ?? Vec3.create(0,0,0),
+          lastX: event.clientX, lastY: event.clientY,
         }
         return
       }
 
-      if (event.shiftKey) {
-        toggleProteinSelection(hit.id)
-      } else {
-        setSelectedProteinIds([hit.id])
-      }
+      event.shiftKey ? toggleProteinSelection(hitId) : setSelectedProteinIds([hitId])
 
-      const basis = computeScreenBasis()
-      if (basis) {
-        dragStateRef.current = {
-          mode: 'translate',
-          lastX: event.clientX,
-          lastY: event.clientY,
-          basis,
-          id: hit.id,
-        }
+      const axes = getCameraAxes()
+      if (axes) {
+        dragRef.current = { mode: 'translate', id: hitId, axes, lastX: event.clientX, lastY: event.clientY }
       }
     }
 
-    const handleMouseMove = (event) => {
-      const drag = dragStateRef.current
+    const handleMouseMove = async (event) => {
+      const drag = dragRef.current
       if (!drag) return
-      const viewer = viewerRef.current
-      if (!viewer) return
-
+      const plugin = pluginRef.current
+      if (!plugin) return
       event.stopImmediatePropagation()
       event.preventDefault()
 
-      const dxPx = event.clientX - drag.lastX
-      const dyPx = event.clientY - drag.lastY
-      if (dxPx === 0 && dyPx === 0) return
+      const dx = event.clientX - drag.lastX
+      const dy = event.clientY - drag.lastY
+      if (dx === 0 && dy === 0) return
 
-      const entry = modelsRef.current.get(drag.id)
-      if (entry) {
-        if (drag.mode === 'rotate') {
-          const yaw = dxPx * 0.01
-          const pitch = dyPx * 0.01
-          rotateModelAroundCentroid(entry.model, drag.centroid, yaw, pitch)
-        } else {
-          const world = screenDeltaToWorld(dxPx, dyPx, drag.basis)
-          translateModelAtoms(entry.model, world.x, world.y, 0)
-        }
-        applyEntryStyle(entry, true)
+      const entry = entriesRef.current.get(drag.id)
+      if (!entry) return
+
+      if (drag.mode === 'rotate') {
+        applyRotation(entry.mat, drag.centroid, dx * 0.01, dy * 0.01)
+      } else {
+        const axes = getCameraAxes() ?? drag.axes
+        const scale = DRAG_SCALE * (plugin.canvas3d?.camera?.state?.radius ?? 50)
+        applyTranslation(entry.mat, axes.right, axes.up, dx, dy, scale)
       }
+
+      await commitTransform(plugin, entry)
       drag.lastX = event.clientX
       drag.lastY = event.clientY
-      viewer.render()
     }
 
-    const handleMouseUp = () => {
-      dragStateRef.current = null
-    }
+    const handleMouseUp = () => { dragRef.current = null }
 
     container.addEventListener('mousedown', handleMouseDown, true)
     window.addEventListener('mousemove', handleMouseMove, true)
@@ -352,10 +422,10 @@ export default function MolecularViewer({ background = '#ffffff' }) {
       window.removeEventListener('mousemove', handleMouseMove, true)
       window.removeEventListener('mouseup', handleMouseUp, true)
     }
-  }, [containerRef, viewerRef, setSelectedProteinIds, toggleProteinSelection, clearSelection])
+  }, [containerRef, pluginRef, setSelectedProteinIds, toggleProteinSelection, clearSelection])
 
   return (
-    <ViewerCanvas containerRef={containerRef}>
+    <ViewerCanvas containerRef={containerRef} tooltip={tooltip}>
       <div />
     </ViewerCanvas>
   )

@@ -23,9 +23,11 @@
  * @property {number} length
  * @property {string} organism
  * @property {number|null} plddtMean
+ * @property {number|null} meanPae
  * @property {BiologicalInfo|null} biological
  * @property {string|null} pdbData  PDB en texto, listo para `addModel`.
  * @property {'mock'|'api'} source
+ * @property {Object}  _raw  Forma API-style para el drawer de detalles.
  */
 
 const solubilityLabelFromPrediction = (prediction) => {
@@ -43,13 +45,94 @@ const solubilityLabelFromPrediction = (prediction) => {
 
 const instabilityLabelFromIndex = (index) => (index < 40 ? 'Estable' : 'Inestable')
 
-/**
- * Convierte una entrada del catálogo mock al formato unificado.
- * @param {string} id
- * @param {Object} mock
- * @param {string|null} [pdbData]
- * @returns {UnifiedProtein}
- */
+function buildRawFromMock(mock, pdbData) {
+  const bio = mock.biological
+  return {
+    protein_metadata: {
+      protein_name: mock.name,
+      organism: mock.organism,
+      uniprot_id: mock.uniprotId ?? null,
+      pdb_id: mock.pdbId ?? null,
+      data_source: 'Simulación sintética',
+    },
+    structural_data: {
+      confidence: {
+        plddt_mean: mock.plddtMean ?? null,
+        mean_pae: mock.meanPae ?? null,
+      },
+      pdb_file: pdbData ?? '',
+    },
+    biological_data: bio
+      ? {
+          solubility_score: bio.solubility ?? 0,
+          solubility_prediction: bio.solubilityLabel ?? 'Desconocida',
+          instability_index: bio.instabilityIndex ?? 0,
+          stability_status: bio.instabilityLabel ?? 'Desconocida',
+          toxicity_alerts: bio.toxicityAlerts ?? (bio.toxicityAlert ? [bio.toxicityLabel] : []),
+          allergenicity_alerts: bio.allergenicityAlerts ?? [],
+        }
+      : null,
+    sequence_properties: {
+      length: mock.length ?? 0,
+      molecular_weight_kda: bio?.molecularWeightKda ?? (bio?.molecularWeight ? bio.molecularWeight / 1000 : 0),
+      positive_charges: bio?.positiveCharges ?? 0,
+      negative_charges: bio?.negativeCharges ?? 0,
+      cysteine_residues: bio?.cysteineResidues ?? 0,
+    },
+    logs: '',
+  }
+}
+
+function buildRawFromApi(validated) {
+  const meta = validated.proteinMetadata
+  const structural = validated.structuralData
+  const biological = validated.biologicalData
+  const seqProps = biological?.sequenceProperties
+
+  return {
+    protein_metadata: meta
+      ? {
+          protein_name: meta.proteinName,
+          organism: meta.organism,
+          uniprot_id: meta.uniprotId,
+          pdb_id: meta.pdbId,
+          data_source: meta.dataSource ?? 'AlphaFold DB',
+        }
+      : null,
+    structural_data: structural
+      ? {
+          confidence: structural.confidence
+            ? {
+                plddt_mean: structural.confidence.plddtMean,
+                mean_pae: structural.confidence.meanPae,
+              }
+            : null,
+          pdb_file: structural.pdbFile ?? '',
+        }
+      : null,
+    biological_data: biological
+      ? {
+          solubility_score: biological.solubilityScore ?? 0,
+          solubility_prediction: biological.solubilityPrediction ?? 'unknown',
+          instability_index: biological.instabilityIndex ?? 0,
+          stability_status: biological.stabilityStatus ?? 'unknown',
+          toxicity_alerts: biological.toxicityAlerts ?? [],
+          allergenicity_alerts: biological.allergenicityAlerts ?? [],
+        }
+      : null,
+    sequence_properties: seqProps
+      ? {
+          length: seqProps.length ?? 0,
+          molecular_weight_kda: seqProps.molecularWeightKda ?? 0,
+          positive_charges: seqProps.positiveCharges ?? 0,
+          negative_charges: seqProps.negativeCharges ?? 0,
+          cysteine_residues: seqProps.cysteineResidues ?? 0,
+        }
+      : null,
+    logs: validated.logs ?? '',
+  }
+}
+
 export function mockToUnified(id, mock, pdbData = null) {
   return {
     id,
@@ -59,20 +142,14 @@ export function mockToUnified(id, mock, pdbData = null) {
     length: mock.length ?? 0,
     organism: mock.organism ?? 'Unknown',
     plddtMean: mock.plddtMean ?? null,
+    meanPae: mock.meanPae ?? null,
     biological: mock.biological ?? null,
     pdbData,
     source: 'mock',
+    _raw: buildRawFromMock(mock, pdbData),
   }
 }
 
-/**
- * Convierte una respuesta validada de la API (`validateApiResponse`) al
- * formato unificado. Devuelve null si el job no está `COMPLETED` o si
- * faltan datos esenciales.
- *
- * @param {Object} validated
- * @returns {UnifiedProtein|null}
- */
 export function apiToUnified(validated) {
   if (!validated || validated.status !== 'COMPLETED') return null
   const meta = validated.proteinMetadata
@@ -84,7 +161,7 @@ export function apiToUnified(validated) {
   const length = seqProps?.length ?? 0
   const molecularWeightKda = seqProps?.molecularWeightKda ?? 0
   const plddtMean = meta.plddtAverage ?? structural.confidence?.plddtMean ?? null
-
+  const meanPae = structural.confidence?.meanPae ?? null
   const toxicityAlertsCount = biological?.toxicityAlerts?.length ?? 0
 
   return {
@@ -99,6 +176,7 @@ export function apiToUnified(validated) {
     length,
     organism: meta.organism ?? 'Unknown',
     plddtMean,
+    meanPae,
     biological: biological
       ? {
           solubility: biological.solubilityScore ?? 0,
@@ -117,6 +195,8 @@ export function apiToUnified(validated) {
         }
       : null,
     pdbData: structural.pdbFile || null,
+    cifData: structural.cifFile || null,
     source: 'api',
+    _raw: buildRawFromApi(validated),
   }
 }
