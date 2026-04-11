@@ -5,6 +5,7 @@ import type { ResourceConfig } from './components/FastaForm';
 import JobTracker from './components/JobTracker';
 import ProteinViewer from './components/ProteinViewer';
 import MetricsDashboard from './components/MetricsDashboard';
+import ExplanationPanel from './components/ExplanationPanel';
 import { submitJob, pollJobStatus, getJobOutputs } from './api/cesgaApi';
 import type { JobStatusResponse, JobOutputsResponse, JobStatus } from './api/types';
 
@@ -244,7 +245,8 @@ export default function App() {
             zIndex: 10,
             boxShadow: '-10px 0 30px rgba(0,0,0,0.4)',
           }}>
-            <div style={{ padding: 24 }}>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <ExplanationPanel outputs={outputs} />
               <MetricsDashboard
                 biologicalData={outputs.biological_data}
                 proteinMetadata={outputs.protein_metadata}
