@@ -1,8 +1,9 @@
 import { useCallback } from 'react'
-import { useProteinStore } from '../stores/useProteinStore'
-import { submitJob, pollJob, ApiError } from '../lib/apiClient'
-import { apiToUnified } from '../lib/proteinAdapter'
-import { USE_MOCK } from '../lib/appConfig'
+
+import { useProteinStore } from '@/stores/useProteinStore'
+import { submitJob, pollJob, ApiError } from '@/lib/apiClient'
+import { apiToUnified } from '@/lib/proteinAdapter'
+import { USE_MOCK } from '@/lib/appConfig'
 
 /**
  * Hook para lanzar la carga de una proteína a partir de un input libre

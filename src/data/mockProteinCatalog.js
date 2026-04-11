@@ -1,7 +1,3 @@
-import { buildHelixPdb } from '../lib/helix'
-import { mockToUnified } from '../lib/proteinAdapter'
-import { mockPredictionResult } from './mockData'
-
 /**
  * Layouts geométricos + metadatos de las hélices del universo mock.
  * Esta lista es la única fuente de verdad del modo mock: el catálogo
@@ -18,8 +14,19 @@ export const MOCK_HELIX_LAYOUTS = [
       uniprotId: 'P0CG47',
       length: 76,
       organism: 'Homo sapiens',
-      plddtMean: mockPredictionResult.plddt.mean,
-      biological: mockPredictionResult.biological,
+      plddtMean: 85.4,
+      biological: {
+        solubility: 79.8,
+        solubilityLabel: 'Soluble',
+        instabilityIndex: 24.3,
+        instabilityLabel: 'Estable',
+        toxicityAlert: false,
+        toxicityLabel: 'No tóxica',
+        molecularWeight: 8564.9,     // Da
+        isoelectricPoint: 6.56,
+        halfLife: '>10 horas (mamíferos)',
+        extinctionCoefficient: 1490, // M⁻¹cm⁻¹
+      }
     },
   },
   {
@@ -73,14 +80,3 @@ export const MOCK_HELIX_LAYOUTS = [
     },
   },
 ]
-
-/**
- * Proteínas mock en forma `UnifiedProtein`, con sus PDBs sintéticos ya
- * generados. Pensado para ir directamente a `replaceCatalog` en el store.
- */
-export function buildMockProteinCatalog() {
-  return MOCK_HELIX_LAYOUTS.map((layout) => {
-    const pdbData = buildHelixPdb(layout.residues, layout.offset)
-    return mockToUnified(layout.id, layout.details, pdbData)
-  })
-}

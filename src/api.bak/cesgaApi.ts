@@ -1,4 +1,4 @@
-import { ApiError, api } from './client';
+import { ApiError, api } from '@/api/client';
 import type {
   SubmitJobPayload,
   SubmitJobResponse,
@@ -6,7 +6,7 @@ import type {
   JobOutputsResponse,
   JobStatus,
   ProteinSample,
-} from './types';
+} from '@/api/types';
 
 export async function submitJob(payload: SubmitJobPayload): Promise<SubmitJobResponse> {
   const { data } = await api.post<SubmitJobResponse>('/jobs/submit', payload);

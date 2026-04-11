@@ -11,7 +11,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "allowJs": false
-  },
-  "include": ["src"],
-  "exclude": ["**/*.js"]
+  }
 }

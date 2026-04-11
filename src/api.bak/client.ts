@@ -15,12 +15,19 @@ export class ApiError extends Error {
 // Extracts a readable message from FastAPI's 422 body (or the `detail` string from 400/404).
 function extractMessage(err: AxiosError<any>): string {
   const data = err.response?.data;
-  if (typeof data?.detail === "string") return data.detail;
+
+  if (typeof data?.detail === "string")
+    return data.detail;
+
   if (Array.isArray(data?.detail) && data.detail[0]?.msg)
     return data.detail[0].msg;
+
   if (err.code === "ECONNABORTED")
     return "El servidor tarda en responder (posible arranque en frío). Inténtalo de nuevo.";
-  if (err.code === "ERR_NETWORK") return "Sin conexión con el simulador CESGA.";
+
+  if (err.code === "ERR_NETWORK")
+    return "Sin conexión con el simulador CESGA.";
+
   return err.message || "Ha ocurrido un error inesperado.";
 }
 
