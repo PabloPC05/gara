@@ -11,8 +11,8 @@ import {
 import { useUIStore } from '../../stores/useUIStore'
 
 export function EnvironmentMenu() {
-  const sceneBackground      = useUIStore((s) => s.sceneBackground)
-  const setSceneBackground   = useUIStore((s) => s.setSceneBackground)
+  const sceneBackground      = useUIStore((s) => s.viewerBackground)
+  const setSceneBackground   = useUIStore((s) => s.setViewerBackground)
   const viewerLighting       = useUIStore((s) => s.viewerLighting)
   const setViewerLighting    = useUIStore((s) => s.setViewerLighting)
   
@@ -25,17 +25,17 @@ export function EnvironmentMenu() {
         <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Fondos</MenubarLabel>
         <MenubarItem 
           className={itemClass}
-          onClick={() => setSceneBackground('#000000')}
+          onClick={() => setSceneBackground('#ffffff')}
         >
-          <span>Fondo Oscuro (Default)</span>
-          {sceneBackground === '#000000' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
+          <span>Fondo Claro (Default)</span>
+          {sceneBackground === '#ffffff' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
         </MenubarItem>
         <MenubarItem 
           className={itemClass}
-          onClick={() => setSceneBackground('#f8fafc')}
+          onClick={() => setSceneBackground('#000000')}
         >
-          <span>Fondo Clínico (Claro)</span>
-          {sceneBackground === '#f8fafc' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
+          <span>Fondo Oscuro</span>
+          {sceneBackground === '#000000' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>}
         </MenubarItem>
         
         <MenubarSeparator className="bg-white/10 mx-1 my-1" />

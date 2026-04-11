@@ -13,8 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AuthDialog } from "../auth/AuthDialog";
 import useAuthStore from "../../stores/useAuthStore";
 import { 
-  User, Dna, Settings, LogOut, Microscope, History, 
-  Hammer, CreditCard, Key, Database, Sliders 
+  Settings, LogOut, History, Hammer, Database
 } from 'lucide-react';
 
 export function UserAccountModule() {
@@ -38,9 +37,9 @@ export function UserAccountModule() {
       onClick={() => !user && setAuthDialogOpen(true)}
       className="flex items-center justify-center rounded-full hover:ring-2 hover:ring-[#e31e24]/50 transition-all focus:outline-none ring-2 ring-transparent shadow-sm bg-slate-800 group p-0 m-0 cursor-pointer"
     >
-      <Avatar className="h-9 w-9 rounded-full border-2 border-slate-700/80 group-hover:border-transparent transition-colors">
+      <Avatar className="h-8 w-8 rounded-full border-2 border-slate-700/80 group-hover:border-transparent transition-colors">
         <AvatarImage src={user ? "" : "https://avatar.vercel.sh/bio"} className="rounded-full" />
-        <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-800 text-xs font-bold text-white rounded-full">
+        <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-800 text-[11px] font-bold text-white rounded-full">
           {user ? getInitials(user.email) : 'LF'}
         </AvatarFallback>
       </Avatar>
@@ -56,8 +55,8 @@ export function UserAccountModule() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64 border border-slate-700/50 bg-[#18181b]/95 backdrop-blur-md shadow-2xl rounded-2xl p-2 z-[60] text-slate-200 mt-2">
             <div className="flex items-center gap-3 px-2 py-3 mb-1">
-              <Avatar className="h-10 w-10 border border-slate-600/50 shadow-sm">
-                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-800 text-sm font-bold text-white">
+              <Avatar className="h-10 w-10 border border-slate-600/50 shadow-sm rounded-full">
+                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-800 text-sm font-bold text-white rounded-full">
                   {getInitials(user.email)}
                 </AvatarFallback>
               </Avatar>

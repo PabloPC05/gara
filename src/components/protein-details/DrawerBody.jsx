@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  AlertTriangle,
+  TriangleAlert,
   BookOpen,
   Database,
   Download,
@@ -10,6 +10,7 @@ import {
   Link2,
   Terminal,
 } from 'lucide-react'
+import PaeHeatmap from '@/components/PaeHeatmap'
 
 /* ─────────────── utilidades numéricas ─────────────── */
 
@@ -102,6 +103,7 @@ function normalizeProtein(protein) {
 
     plddtMean: pick(protein.plddtMean, conf.plddt_mean),
     meanPae: pick(protein.meanPae, conf.mean_pae),
+    paeMatrix: Array.isArray(conf.pae_matrix) ? conf.pae_matrix : [],
 
     solubilityScore: pick(bioUnified?.solubility, bioRaw.solubility_score),
     solubilityLabel: pick(bioUnified?.solubilityLabel, bioRaw.solubility_prediction),
@@ -428,7 +430,19 @@ function StructuralConfidence({ v }) {
   )
 }
 
-/* ─────────────── 5. Viabilidad biológica ─────────────── */
+/* ─────────────── 5. PAE Heatmap ─────────────── */
+
+function PaeHeatmapSection({ v }) {
+  if (!v.paeMatrix || v.paeMatrix.length === 0) return null
+
+  return (
+    <Section title="Mapa de error PAE">
+      <PaeHeatmap paeMatrix={v.paeMatrix} meanPae={v.meanPae} compact />
+    </Section>
+  )
+}
+
+/* ─────────────── 6. Viabilidad biológica ─────────────── */
 
 function BioViability({ v }) {
   const hasMetrics = v.solubilityScore != null || v.instabilityIndex != null
@@ -494,7 +508,7 @@ function AlertRow({ label, alerts }) {
   return (
     <div className="flex items-start justify-between gap-2 py-0.5">
       <span className="flex items-center gap-1 text-[11px] text-slate-600">
-        <AlertTriangle className="h-3 w-3 text-amber-600" strokeWidth={2} />
+        <TriangleAlert className="h-3 w-3 text-amber-600" strokeWidth={2} />
         {label}
       </span>
       <div className="flex flex-wrap justify-end gap-1">
@@ -804,6 +818,7 @@ export function DrawerBody({ protein }) {
           <FunctionSection v={v} />
           <PhysicalProps v={v} />
           <StructuralConfidence v={v} />
+          <PaeHeatmapSection v={v} />
           <BioViability v={v} />
           <KnownStructures v={v} />
           <SequenceSection v={v} />

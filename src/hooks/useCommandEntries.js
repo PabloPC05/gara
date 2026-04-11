@@ -1,117 +1,167 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useProteinLoader } from './useProteinLoader'
-import { MOCK_HELIX_LAYOUTS } from '@/data/mockProteinCatalog'
+
+// ─── Validación de input ──────────────────────────────────────────────────────
 
 const VALID_AMINO_ACIDS = new Set('GAVLIMFWPSTCYNQDEKRH'.split(''))
-const PDB_ID_PATTERN = /^[0-9][a-zA-Z0-9]{3}$/
+const PDB_ID_PATTERN    = /^[0-9][a-zA-Z0-9]{3}$/
 const MIN_SEQUENCE_LENGTH = 3
+
+/** Extrae la secuencia pura de un bloque FASTA (elimina cabeceras ">..."). */
+const extractSequence = (value) =>
+  value
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('>'))
+    .join('')
+    .replace(/\s/g, '')
 
 const isValidSequence = (value) => {
   if (value.length < MIN_SEQUENCE_LENGTH) return false
-  return value.toUpperCase().split('').every((char) => VALID_AMINO_ACIDS.has(char))
+  return value.toUpperCase().split('').every((c) => VALID_AMINO_ACIDS.has(c))
 }
 
 /**
- * Una entrada "con lógica" es un PDB ID de 4 caracteres (1ubq, 6lu7...)
- * o una secuencia de al menos 3 aminoácidos usando las 20 letras estándar.
+ * Entrada válida = PDB ID de 4 chars (e.g. "1ubq") ó secuencia ≥3 aa
+ * usando las 20 letras estándar, con o sin cabecera FASTA.
  */
 export const isValidEntry = (value) => {
-  const trimmed = value.trim()
+  const trimmed = value?.trim()
   if (!trimmed) return false
-  return PDB_ID_PATTERN.test(trimmed) || isValidSequence(trimmed)
+  if (PDB_ID_PATTERN.test(trimmed)) return true
+  return isValidSequence(extractSequence(trimmed))
 }
 
-const toEntrySignature = (value = '') => value.trim().toUpperCase()
-
-const createEntry = ({ value = '', proteinId = null, submittedSignature = null } = {}) => ({
-  id: crypto.randomUUID(),
-  value,
-  proteinId,
-  submittedSignature,
-})
-
-const INITIAL_ENTRY_COUNT = 3
-
-const createInitialEntries = (isMock) => {
-  if (isMock) {
-    return MOCK_HELIX_LAYOUTS.map((layout) => createEntry({ proteinId: layout.id }))
-  }
-  return Array.from({ length: INITIAL_ENTRY_COUNT }, () => createEntry())
-}
+// ─── Fábrica de entradas ──────────────────────────────────────────────────────
 
 /**
- * Estado y operaciones de la lista de entradas híbridas del sidebar.
- * Sólo permite añadir una nueva entrada si todas las existentes son válidas.
+ * @typedef {Object} Entry
+ * @property {string}   id         UUID local
+ * @property {string}   value      Texto que el usuario escribió (secuencia / PDB ID)
+ * @property {'idle'|'loading'|'loaded'|'error'} status
+ * @property {string|null} proteinId  ID en proteinsById una vez cargada
+ * @property {string|null} error      Mensaje de error si status === 'error'
+ */
+
+/** @returns {Entry} */
+const createEntry = (value = '') => ({
+  id: crypto.randomUUID(),
+  value,
+  status: 'idle',
+  proteinId: null,
+  error: null,
+})
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Gestiona la lista de entradas del sidebar y su ciclo de vida completo:
+ *   escribir → validar → enviar a API → mostrar resultado en el visor 3D.
+ *
+ * Cada entrada lleva su propio estado (idle/loading/loaded/error) y el
+ * `proteinId` que la enlaza con `proteinsById` en el store global.
  */
 export function useCommandEntries() {
-  const { load, isMock } = useProteinLoader()
-  const [entries, setEntries] = useState(() => createInitialEntries(isMock))
-  const [focusedId, setFocusedId] = useState(() => entries[0]?.id ?? null)
-  const inFlightByEntryIdRef = useRef(new Set())
+  const { load } = useProteinLoader()
 
+  const [entries,  setEntries]  = useState(() => [createEntry()])
+  const [focusedId, setFocusedId] = useState(null)
+
+  // ── Edición de texto ────────────────────────────────────────────────────────
   const updateEntry = useCallback((id, value) => {
-    const nextSignature = toEntrySignature(value)
     setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== id) return entry
-        if (entry.submittedSignature && entry.submittedSignature !== nextSignature) {
-          return { ...entry, value, proteinId: null, submittedSignature: null }
+      prev.map((e) => {
+        if (e.id !== id) return e
+        // Si el usuario edita una entrada ya cargada/con error, la reinicia
+        if (e.status !== 'idle' && e.value !== value) {
+          return { ...e, value, status: 'idle', proteinId: null, error: null }
         }
-        return { ...entry, value }
+        return { ...e, value }
       }),
     )
   }, [])
 
-  const canAppend = useMemo(() => entries.every((entry) => isValidEntry(entry.value)), [entries])
+  // ── Submit: dispara la carga API ────────────────────────────────────────────
+  /**
+   * Lanza la carga de la proteína para la entrada `id` con el `value` dado.
+   * Actualiza el estado de la entrada durante todo el ciclo.
+   */
+  const submitEntry = useCallback(async (id, value) => {
+    const trimmed = value?.trim()
+    if (!trimmed || !isValidEntry(trimmed)) return
 
-  const appendEntry = useCallback(() => {
-    if (!canAppend) return
+    setEntries((prev) =>
+      prev.map((e) => e.id === id ? { ...e, status: 'loading', error: null } : e),
+    )
 
-    if (!isMock) {
-      for (const entry of entries) {
-        const signature = toEntrySignature(entry.value)
-        if (!signature) continue
-        if (inFlightByEntryIdRef.current.has(entry.id)) continue
-        if (entry.proteinId && entry.submittedSignature === signature) continue
-
-        inFlightByEntryIdRef.current.add(entry.id)
-        load(entry.value)
-          .then((proteinId) => {
-            if (!proteinId) return
-            setEntries((prev) =>
-              prev.map((current) => {
-                if (current.id !== entry.id) return current
-                if (toEntrySignature(current.value) !== signature) return current
-                return { ...current, proteinId, submittedSignature: signature }
-              }),
-            )
-          })
-          .catch(() => {
-            // el error queda registrado en el store (errorById);
-            // aquí solo evitamos romper el flujo de append.
-          })
-          .finally(() => {
-            inFlightByEntryIdRef.current.delete(entry.id)
-          })
+    try {
+      const proteinId = await load(trimmed)
+      if (proteinId) {
+        setEntries((prev) =>
+          prev.map((e) => e.id === id ? { ...e, status: 'loaded', proteinId } : e),
+        )
+      } else {
+        setEntries((prev) =>
+          prev.map((e) => e.id === id
+            ? { ...e, status: 'error', error: 'Sin respuesta del servidor' }
+            : e,
+          ),
+        )
       }
+    } catch (err) {
+      setEntries((prev) =>
+        prev.map((e) => e.id === id
+          ? { ...e, status: 'error', error: err?.message ?? 'Error desconocido' }
+          : e,
+        ),
+      )
     }
+  }, [load])
 
-    const nextMockProteinId = isMock ? MOCK_HELIX_LAYOUTS[entries.length]?.id ?? null : null
-    const newEntry = createEntry({ proteinId: nextMockProteinId })
+  // ── Añadir nueva entrada ────────────────────────────────────────────────────
+  /**
+   * Crea una nueva entrada (opcionalmente con valor inicial) y la focaliza.
+   * Si `value` es válido, dispara la carga inmediatamente.
+   */
+  const appendEntry = useCallback((value = '') => {
+    const newEntry = createEntry(value)
     setEntries((prev) => [...prev, newEntry])
     setFocusedId(newEntry.id)
-  }, [canAppend, entries, isMock, load])
 
-  const focusEntry = useCallback((id) => {
-    setFocusedId(id)
+    if (value && isValidEntry(value)) {
+      submitEntry(newEntry.id, value)
+    }
+
+    return newEntry.id
+  }, [submitEntry])
+
+  // ── Eliminar entrada ────────────────────────────────────────────────────────
+  const removeEntry = useCallback((id) => {
+    setEntries((prev) => {
+      const next = prev.filter((e) => e.id !== id)
+      return next.length > 0 ? next : [createEntry()]
+    })
+    setFocusedId(null)
   }, [])
+
+  const focusEntry = useCallback((id) => setFocusedId(id), [])
+
+  /**
+   * El botón "+" está habilitado cuando no hay ninguna entrada vacía idle.
+   * Impide tener múltiples inputs vacíos al mismo tiempo.
+   */
+  const canAppend = useMemo(
+    () => entries.every((e) => e.value.trim().length > 0 || e.status === 'loading'),
+    [entries],
+  )
 
   return {
     entries,
     focusedId,
     canAppend,
     updateEntry,
+    submitEntry,
     appendEntry,
+    removeEntry,
     focusEntry,
   }
 }

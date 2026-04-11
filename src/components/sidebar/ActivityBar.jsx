@@ -1,37 +1,49 @@
 import React from 'react';
-import { PlusSquare, FileCode, Search } from 'lucide-react';
+import { SquarePlus, FileCode, Search, Bot, Settings } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 
-export function ActivityBar() {
-  const activeTab = useUIStore((state) => state.activeTab);
-  const setActiveTab = useUIStore((state) => state.setActiveTab);
+const NAV_TABS = [
+  { id: 'plus',   icon: SquarePlus, title: 'Espacio 3D' },
+  { id: 'files',  icon: FileCode,   title: 'Scripts & Jobs' },
+  { id: 'search', icon: Search,     title: 'Explorar Catálogo' },
+  { id: 'ai',     icon: Bot,        title: 'AI Assistant' },
+];
 
-  const handleTabClick = (tab) => {
-    setActiveTab(tab);
-  };
+export function ActivityBar() {
+  const activeTab    = useUIStore((s) => s.activeTab);
+  const setActiveTab = useUIStore((s) => s.setActiveTab);
 
   return (
-    <div className="flex flex-col items-center w-12 bg-black border-r border-[#27272a] py-4 gap-4 z-50 h-screen flex-shrink-0">
-      <button 
-        onClick={() => handleTabClick('plus')}
-        className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${activeTab === 'plus' ? 'text-white border-[#e31e24]' : 'text-slate-400 hover:text-slate-200 border-transparent'}`}
-        title="Espacio 3D"
+    <div className="flex flex-col items-center w-12 bg-black border-r border-[#27272a] py-4 gap-4 z-50 h-full flex-shrink-0">
+
+      {/* Tabs principales */}
+      {NAV_TABS.map(({ id, icon: Icon, title }) => (
+        <button
+          key={id}
+          onClick={() => setActiveTab(id)}
+          className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${
+            activeTab === id
+              ? 'text-white border-[#e31e24]'
+              : 'text-slate-400 hover:text-slate-200 border-transparent'
+          }`}
+          title={title}
+        >
+          <Icon size={24} strokeWidth={1.5} />
+        </button>
+      ))}
+
+      {/* Ajustes al fondo */}
+      <div className="flex-1" />
+      <button
+        onClick={() => setActiveTab('settings')}
+        className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${
+          activeTab === 'settings'
+            ? 'text-white border-[#e31e24]'
+            : 'text-slate-400 hover:text-slate-200 border-transparent'
+        }`}
+        title="Ajustes"
       >
-        <PlusSquare size={24} strokeWidth={1.5} />
-      </button>
-      <button 
-        onClick={() => handleTabClick('files')}
-        className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${activeTab === 'files' ? 'text-white border-[#e31e24]' : 'text-slate-400 hover:text-slate-200 border-transparent'}`}
-        title="Scripts & Jobs"
-      >
-        <FileCode size={24} strokeWidth={1.5} />
-      </button>
-      <button 
-        onClick={() => handleTabClick('search')}
-        className={`p-2 rounded-none transition-colors w-full flex justify-center border-l-2 ${activeTab === 'search' ? 'text-white border-[#e31e24]' : 'text-slate-400 hover:text-slate-200 border-transparent'}`}
-        title="Explorar Catálogo"
-      >
-        <Search size={24} strokeWidth={1.5} />
+        <Settings size={24} strokeWidth={1.5} />
       </button>
     </div>
   );

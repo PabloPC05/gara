@@ -1,20 +1,48 @@
+import { getAminoAcidInfo } from '../../utils/aminoAcids';
+import { useProteinStore } from '../../stores/useProteinStore';
+
 const DOT_GRID_STYLE = {
-  backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)',
+  backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
   backgroundSize: '80px 80px',
+}
+
+/** Devuelve el color AlphaFold para el valor numérico de pLDDT. */
+function plddtColor(score) {
+  const b = parseFloat(score)
+  if (b >= 90) return '#0053D6'   // Azul oscuro
+  if (b >= 70) return '#65CBF3'   // Cyan
+  if (b >= 50) return '#eab308'   // Amarillo
+  return '#FF7D45'                 // Naranja
 }
 
 /**
  * Contenedor visual para el visor Mol*:
  *  - El div `containerRef` recibe el <canvas> que Mol* crea internamente.
  *  - La rejilla de puntos se superpone sobre el canvas (pointer-events-none).
- *  - `tooltip` (opcional): { label, plddt, x, y } muestra la etiqueta de
- *    residuo + confianza pLDDT al pasar el ratón sobre la molécula.
+ *  - `tooltip` (opcional): { code, seqId, chainId, plddt, x, y }
  */
 export default function ViewerCanvas({ containerRef, tooltip, children }) {
+  const aminoInfo = tooltip ? getAminoAcidInfo(tooltip.code) : null;
+  const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds);
+  const isDrawerOpen = selectedProteinIds.length > 0;
+  const isComparison = selectedProteinIds.length >= 2;
+  const hasSelection = selectedProteinIds.length > 0;
+
+  // Calculamos el desplazamiento basado en el ancho del drawer definido en ProteinDetailsDrawer.jsx
+  let drawerOffset = '1.5rem'; // margen derecho por defecto
+  if (isDrawerOpen) {
+    if (isComparison) {
+      const visibleCount = Math.min(selectedProteinIds.length, 4);
+      drawerOffset = `calc(min(${visibleCount * 22}rem, 100vw - 4rem) + 3rem)`;
+    } else {
+      drawerOffset = '29rem'; // 26rem del drawer + 3rem de margen
+    }
+  }
+
   return (
     <div
       data-role="molecular-viewer"
-      className="w-full h-full relative bg-[#08090d] flex items-center justify-center min-h-[500px]"
+      className="w-full h-full relative bg-white flex items-center justify-center min-h-[500px]"
     >
       {/* Mol* inyecta su propio <canvas> aquí */}
       <div
@@ -23,35 +51,80 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
         style={{ minHeight: '500px' }}
       />
 
-      {/* Rejilla decorativa de puntos */}
-      <div className="absolute inset-0 pointer-events-none opacity-15" style={DOT_GRID_STYLE} />
-
-      {/* Tooltip de residuo pLDDT */}
-      {tooltip && (
-        <div
-          className="pointer-events-none absolute z-50 rounded-lg bg-[#111113]/90 border border-white/10 px-3 py-2 text-xs text-white backdrop-blur-sm shadow-xl"
-          style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
-        >
-          <span className="font-semibold tracking-wide">{tooltip.label}</span>
-          <span className="mx-1.5 text-white/30">·</span>
-          <span className="text-slate-400">pLDDT</span>
-          <span className="mx-1 text-white/30">:</span>
-          <span className="font-mono" style={{ color: plddtColor(tooltip.plddt) }}>
-            {tooltip.plddt}
-          </span>
+      {/* Marca de agua: Logo Camelia (visible solo cuando no hay selección) */}
+      {!hasSelection && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 select-none animate-in fade-in duration-700">
+          <img 
+            src="/src/assets/logo.png" 
+            alt="Camelia Logo" 
+            className="w-64 h-64 md:w-96 md:h-96 object-contain opacity-[0.07] grayscale contrast-125"
+          />
         </div>
       )}
+
+      {/* Rejilla decorativa de puntos */}
+      <div className="absolute inset-0 pointer-events-none opacity-15 z-20" style={DOT_GRID_STYLE} />
+
+      {/* Tooltip Equilibrado - Elevado a la derecha */}
+      <div 
+        className={`pointer-events-none fixed bottom-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
+        style={{ right: drawerOffset }}
+      >
+        {tooltip && aminoInfo && (
+          <div className="rounded-2xl bg-white/95 border border-slate-200 p-4 shadow-2xl backdrop-blur-md min-w-[240px] flex flex-col gap-3">
+            {/* Cabecera: Nombre y Badge de Código */}
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Residuo en foco</span>
+                <span className="text-[13px] font-bold text-slate-900 leading-none mt-0.5">{aminoInfo.name}</span>
+              </div>
+              <div className="bg-blue-600 px-2 py-1 rounded-lg font-mono font-bold text-xs text-white shadow-sm shadow-blue-200">
+                {tooltip.code}
+              </div>
+            </div>
+
+            {/* Detalles Técnicos en Grid */}
+            <div className="grid grid-cols-2 gap-3 text-[11px]">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Posición</span>
+                <span className="font-mono font-bold text-slate-700">#{tooltip.seqId}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Cadena</span>
+                <span className="font-mono font-bold text-slate-700">{tooltip.chainId}</span>
+              </div>
+              <div className="col-span-2 flex flex-col pt-0.5">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Propiedades</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                   <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
+                   <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Confianza pLDDT con Barra Estilizada */}
+            <div className="pt-2.5 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Confianza pLDDT</span>
+                <span className="font-black text-xs" style={{ color: plddtColor(tooltip.plddt) }}>
+                  {tooltip.plddt}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full transition-all duration-1000 ease-out shadow-sm" 
+                  style={{ 
+                    width: `${tooltip.plddt}%`, 
+                    backgroundColor: plddtColor(tooltip.plddt) 
+                  }} 
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {children}
     </div>
   )
-}
-
-/** Devuelve el color AlphaFold para el valor numérico de pLDDT. */
-function plddtColor(score) {
-  const b = parseFloat(score)
-  if (b >= 90) return '#65CBF3'   // muy alto → cyan (legible sobre fondo oscuro)
-  if (b >= 70) return '#65CBF3'   // alto     → cyan
-  if (b >= 50) return '#FFE91E'   // medio    → amarillo
-  return '#FF7D45'                 // bajo     → naranja
 }

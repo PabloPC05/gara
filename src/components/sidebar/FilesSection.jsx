@@ -1,16 +1,38 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Download } from 'lucide-react';
+import { Upload, Download, Loader2 } from 'lucide-react';
+import { useProteinLoader } from '@/hooks/useProteinLoader';
+import { useProteinStore } from '@/stores/useProteinStore';
+import { validateFasta } from '@/utils/fasta';
 
 export function FilesSection() {
   const [fasta, setFasta] = useState('');
-  const [status, setStatus] = useState('IDLE'); // IDLE, PENDING, RUNNING, COMPLETED
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleRun = () => {
-    if (!fasta) return;
-    setStatus('PENDING');
-    setTimeout(() => setStatus('RUNNING'), 1500);
-    setTimeout(() => setStatus('COMPLETED'), 4500);
+  const { load } = useProteinLoader();
+  const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
+
+  const handleRun = async () => {
+    const validation = validateFasta(fasta);
+    if (!validation.valid) {
+      setError(validation.reason ?? 'Secuencia FASTA no válida');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setDone(false);
+    try {
+      const proteinId = await load(fasta);
+      if (proteinId) setSelectedProteinIds([proteinId]);
+      setDone(true);
+    } catch (err) {
+      setError(err?.message ?? 'Error al procesar la secuencia');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFileUpload = (e) => {
@@ -78,21 +100,39 @@ export function FilesSection() {
           value={fasta}
           onChange={(e) => setFasta(e.target.value)}
         />
-        <button 
-          className="bg-slate-900 text-white py-2 rounded-md hover:bg-slate-800 transition-colors font-medium mt-2 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm"
+        <button
+          className="bg-slate-900 text-white py-2 rounded-md hover:bg-slate-800 transition-colors font-medium mt-2 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
           onClick={handleRun}
-          disabled={!fasta || status === 'PENDING' || status === 'RUNNING'}
+          disabled={!fasta || isLoading}
         >
-          {status === 'RUNNING' ? 'Running...' : status === 'PENDING' ? 'Pending...' : 'Run Job'}
+          {isLoading && <Loader2 size={15} className="animate-spin" />}
+          {isLoading ? 'Procesando...' : 'Run Job'}
         </button>
       </div>
-      
-      {status !== 'IDLE' && (
-        <div className="mt-4 border border-slate-200 rounded-md p-3 bg-slate-50 shadow-sm">
+
+      {error && (
+        <div className="mt-3 border border-rose-200 rounded-md p-3 bg-rose-50 text-rose-700 text-xs">
+          {error}
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="mt-3 border border-slate-200 rounded-md p-3 bg-slate-50 shadow-sm">
           <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
           <div className="flex items-center gap-3">
-            <span className={`flex-shrink-0 w-3 h-3 rounded-full ${status === 'COMPLETED' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : status === 'RUNNING' ? 'bg-[#e31e24] animate-pulse shadow-[0_0_8px_rgba(227,30,36,0.6)]' : 'bg-amber-400'}`}></span>
-            <span className="font-mono text-sm font-semibold">{status}</span>
+            <span className="flex-shrink-0 w-3 h-3 rounded-full bg-[#e31e24] animate-pulse shadow-[0_0_8px_rgba(227,30,36,0.6)]" />
+            <span className="font-mono text-sm font-semibold">RUNNING</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">La primera petición puede tardar hasta 30 s.</p>
+        </div>
+      )}
+
+      {done && !isLoading && (
+        <div className="mt-3 border border-emerald-200 rounded-md p-3 bg-emerald-50 shadow-sm">
+          <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
+          <div className="flex items-center gap-3">
+            <span className="flex-shrink-0 w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            <span className="font-mono text-sm font-semibold">COMPLETED</span>
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@ import {
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import useAuthStore from "../../stores/useAuthStore";
-import { Loader2 } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 
 export function AuthDialog({ open, onOpenChange }) {
   const [mode, setMode] = useState('login'); // 'login', 'signup', 'recovery'
@@ -140,7 +140,7 @@ export function AuthDialog({ open, onOpenChange }) {
             disabled={loading}
           >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <LoaderCircle className="h-4 w-4 animate-spin" />
             ) : mode === 'login' ? (
               'Entrar'
             ) : mode === 'signup' ? (

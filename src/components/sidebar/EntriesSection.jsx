@@ -5,15 +5,20 @@ import { LABEL_CLASS } from './constants'
 
 export function EntriesSection({
   entries,
-  focusedId,
-  canAppend,
   selectedProteinIds,
-  onChangeEntry,
-  onFocusEntry,
-  onAppend,
+  onAddEntry,
   onToggleProteinSelection,
-  onSetSelectedProteinIds,
 }) {
+  if (entries.length === 0) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <AppendEntryButton onClick={onAddEntry} disabled={false} />
+        </SidebarGroupContent>
+      </SidebarGroup>
+    )
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel className={`${LABEL_CLASS} mb-3 px-1`}>
@@ -25,39 +30,21 @@ export function EntriesSection({
 
       <SidebarGroupContent>
         <div className="flex flex-col gap-2">
-          {entries.map((entry, index) => {
-            const proteinId = entry.proteinId ?? null
-            const isSelectable = Boolean(proteinId)
-            const isActive = proteinId ? selectedProteinIds.includes(proteinId) : false
+          {entries.map((protein, index) => {
+            const isActive = selectedProteinIds.includes(protein.id)
             return (
               <EntryRow
-                key={entry.id}
+                key={protein.id}
                 index={index}
-                entry={entry}
-                isSelectable={isSelectable}
-                isFocused={focusedId === entry.id}
+                protein={protein}
                 isActive={isActive}
-                canAppend={canAppend}
-                onChange={onChangeEntry}
-                onFocus={() => {
-                  onFocusEntry(entry.id)
-                  if (proteinId) onSetSelectedProteinIds([proteinId])
-                }}
-                onActivate={(e) => {
-                  if (!proteinId) return
-                  if (e.shiftKey) {
-                    onToggleProteinSelection(proteinId)
-                  } else {
-                    onSetSelectedProteinIds([proteinId])
-                  }
-                }}
-                onSubmit={onAppend}
+                onToggleSelection={onToggleProteinSelection}
               />
             )
           })}
         </div>
 
-        <AppendEntryButton onClick={onAppend} disabled={!canAppend} />
+        <AppendEntryButton onClick={onAddEntry} disabled={false} />
       </SidebarGroupContent>
     </SidebarGroup>
   )

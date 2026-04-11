@@ -7,10 +7,22 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "mutative/dist/index.js": fileURLToPath(new URL("./node_modules/mutative/dist/mutative.esm.mjs", import.meta.url)),
+      "mutative": fileURLToPath(new URL("./node_modules/mutative/dist/mutative.esm.mjs", import.meta.url)),
     },
   },
   optimizeDeps: {
-    // Mol* uses dynamic imports and import.meta.url — exclude from Vite pre-bundling
     exclude: ['molstar'],
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: ['src/test/**', 'src/**/*.d.ts', 'src/types.ts'],
+    },
   },
 })

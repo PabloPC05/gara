@@ -23,7 +23,6 @@ import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js'
 import { Color } from 'molstar/lib/mol-util/color/index.js'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const HALO_COLOR = Color(0xFDE047)  // amarillo selección
 const DRAG_SCALE = 0.004            // px → unidades mundo (se multiplica por camera.radius)
 
 // ─── Presets de iluminación ───────────────────────────────────────────────────
@@ -97,13 +96,36 @@ function applyTranslation(mat, right, up, dx, dy, scale) {
 
 // ─── Pipeline de carga de estructuras ────────────────────────────────────────
 
+function looksLikeCif(text) {
+  return (
+    /^\s*data_/m.test(text)
+    || /^\s*loop_\s*$/m.test(text)
+    || /^\s*_(entry|audit_conform|atom_site|struct)\./m.test(text)
+  )
+}
+
+function resolveStructurePayload(protein) {
+  const candidates = [
+    { text: protein?.structureData, hintedFormat: protein?.structureFormat },
+    { text: protein?.cifData, hintedFormat: 'cif' },
+    { text: protein?.pdbData, hintedFormat: protein?.structureFormat },
+  ]
+
+  const candidate = candidates.find(({ text }) => typeof text === 'string' && text.trim().length > 0)
+  if (!candidate) return null
+
+  const isCif = candidate.hintedFormat === 'cif' || looksLikeCif(candidate.text)
+  return { text: candidate.text, format: isCif ? 'mmcif' : 'pdb' }
+}
+
 /**
  * Carga una cadena PDB/mmCIF en el state tree de Mol*:
  *   rawData → trajectory → model → structure → TransformStructureConformation → repr
  */
 async function loadStructureEntry(plugin, id, protein, reprType) {
-  const text   = protein.cifData ?? protein.pdbData
-  const format = protein.cifData ? 'mmcif' : 'pdb'
+  const payload = resolveStructurePayload(protein)
+  if (!payload) throw new Error(`No structural payload available for protein ${id}`)
+  const { text, format } = payload
 
   const dataRef = await plugin.builders.data.rawData({ data: text, label: id })
   const traj    = await plugin.builders.structure.parseTrajectory(dataRef, format)
@@ -130,44 +152,41 @@ async function loadStructureEntry(plugin, id, protein, reprType) {
   const center    = structObj?.boundary?.sphere?.center
   const centroid  = center ? Vec3.clone(center) : Vec3.create(0, 0, 0)
 
-  return { id, dataRef, baseRef, transformedRef, reprRef, haloReprRef: null, mat: Mat4.identity(), centroid }
+  return { id, dataRef, baseRef, transformedRef, reprRef, mat: Mat4.identity(), centroid }
 }
 
-/** Activa o desactiva el halo semitransparente amarillo de un entry. */
-async function setHalo(plugin, entry, active) {
-  if (active && !entry.haloReprRef) {
-    entry.haloReprRef = await plugin.builders.structure.representation.addRepresentation(
-      entry.transformedRef,
-      { type: 'cartoon', typeParams: { alpha: 0.35 }, color: 'uniform', colorParams: { value: HALO_COLOR } }
-    )
-  } else if (!active && entry.haloReprRef) {
-    await plugin.build().delete(entry.haloReprRef.ref).commit()
-    entry.haloReprRef = null
-  }
-}
 
 /**
- * Reconcilia Map<id,entry> con proteinsById:
- * elimina huérfanos, añade nuevos.
+ * Reconcilia Map<id,entry> con la selección activa:
+ * - Elimina estructuras que ya no están seleccionadas o ya no están en el catálogo.
+ * - Carga las estructuras de las proteínas seleccionadas que aún no están en escena.
  */
 async function syncStructures(plugin, entriesMap, proteinsById, selectedIds, reprType) {
   let dirty = false
+
+  // Eliminar lo que ya no está seleccionado o fue borrado del catálogo
   for (const [id, entry] of entriesMap) {
-    if (!proteinsById[id]) {
+    if (!proteinsById[id] || !selectedIds.includes(id)) {
       try { await plugin.build().delete(entry.dataRef.ref).commit() } catch (_) {}
       entriesMap.delete(id)
       dirty = true
     }
   }
-  for (const id of Object.keys(proteinsById)) {
+
+  // Añadir las proteínas seleccionadas que aún no están en escena
+  for (const id of selectedIds) {
     if (entriesMap.has(id)) continue
     const protein = proteinsById[id]
-    if (!protein?.pdbData && !protein?.cifData) continue
-    const entry = await loadStructureEntry(plugin, id, protein, reprType)
-    await setHalo(plugin, entry, selectedIds.includes(id))
-    entriesMap.set(id, entry)
-    dirty = true
+    if (!protein?.pdbData && !protein?.cifData && !protein?.structureData) continue
+    try {
+      const entry = await loadStructureEntry(plugin, id, protein, reprType)
+      entriesMap.set(id, entry)
+      dirty = true
+    } catch (error) {
+      console.error(`[Mol*] Could not load structure for ${id}`, error)
+    }
   }
+
   return dirty
 }
 
@@ -199,15 +218,13 @@ async function updateAllRepresentations(plugin, entriesMap, reprType) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function MolecularViewer() {
-  const proteinsById           = useProteinStore((s) => s.proteinsById)
-  const selectedProteinIds     = useProteinStore((s) => s.selectedProteinIds)
-  const setSelectedProteinIds  = useProteinStore((s) => s.setSelectedProteinIds)
-  const toggleProteinSelection = useProteinStore((s) => s.toggleProteinSelection)
-  const clearSelection         = useProteinStore((s) => s.clearSelection)
+  const proteinsById          = useProteinStore((s) => s.proteinsById)
+  const selectedProteinIds    = useProteinStore((s) => s.selectedProteinIds)
+  const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds)
 
   const viewerRepresentation = useUIStore((s) => s.viewerRepresentation)
   const viewerLighting       = useUIStore((s) => s.viewerLighting)
-  const sceneBackground      = useUIStore((s) => s.sceneBackground)
+  const sceneBackground      = useUIStore((s) => s.viewerBackground)
 
   // Live refs para closures de event listeners
   const selectedIdsRef  = useRef(selectedProteinIds)
@@ -237,7 +254,7 @@ export default function MolecularViewer() {
         },
       })
 
-      // 3. Cargar estructuras ya presentes en el store al montar
+      // 3. Cargar las proteínas seleccionadas al montar
       const dirty = await syncStructures(
         plugin, entriesRef.current,
         proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
@@ -256,13 +273,14 @@ export default function MolecularViewer() {
 
           const compId = StructureProperties.residue.auth_comp_id(loc)
           const seqId  = StructureProperties.residue.auth_seq_id(loc)
+          const chainId = StructureProperties.chain.auth_asym_id(loc)
           const bfact  = StructureProperties.atom.B_iso_or_equiv(loc)
 
           setTooltip({
-            label: `${compId} ${seqId}`,
+            code: compId,
+            seqId: seqId,
+            chainId: chainId,
             plddt: bfact.toFixed(1),
-            x: page?.[0] ?? 0,
-            y: page?.[1] ?? 0,
           })
         } catch (_) {
           setTooltip(null)
@@ -274,7 +292,8 @@ export default function MolecularViewer() {
     deps: [],
   })
 
-  // ── Sync proteins store → escena Mol* ────────────────────────────────────
+  // ── Sync proteínas seleccionadas → escena Mol* ────────────────────────────
+  // Se dispara tanto al cambiar el catálogo como al cambiar la selección.
   useEffect(() => {
     const plugin = pluginRef.current
     if (!plugin) return
@@ -282,27 +301,13 @@ export default function MolecularViewer() {
     ;(async () => {
       const dirty = await syncStructures(
         plugin, entriesRef.current,
-        proteinsById, selectedIdsRef.current, reprTypeRef.current,
+        proteinsById, selectedProteinIds, reprTypeRef.current,
       )
       if (cancelled) return
       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset()
     })()
     return () => { cancelled = true }
-  }, [proteinsById, pluginRef])
-
-  // ── Sync selección → halos ────────────────────────────────────────────────
-  useEffect(() => {
-    const plugin = pluginRef.current
-    if (!plugin || entriesRef.current.size === 0) return
-    let cancelled = false
-    ;(async () => {
-      for (const [id, entry] of entriesRef.current) {
-        if (cancelled) return
-        await setHalo(plugin, entry, selectedProteinIds.includes(id))
-      }
-    })()
-    return () => { cancelled = true }
-  }, [selectedProteinIds, pluginRef])
+  }, [proteinsById, selectedProteinIds, pluginRef])
 
   // ── Fondo de escena ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -361,7 +366,8 @@ export default function MolecularViewer() {
     const handleMouseDown = (event) => {
       if (event.button !== 0) return
       const hitId = pickAt(event.clientX, event.clientY)
-      if (!hitId) { clearSelection(); return }
+      // Click en fondo vacío: no hace nada (des-selección solo desde el sidebar)
+      if (!hitId) return
 
       event.stopImmediatePropagation()
       event.preventDefault()
@@ -376,7 +382,8 @@ export default function MolecularViewer() {
         return
       }
 
-      event.shiftKey ? toggleProteinSelection(hitId) : setSelectedProteinIds([hitId])
+      // Seleccionar siempre (la des-selección es exclusiva del sidebar)
+      setSelectedProteinIds([hitId])
 
       const axes = getCameraAxes()
       if (axes) {
@@ -422,10 +429,20 @@ export default function MolecularViewer() {
       window.removeEventListener('mousemove', handleMouseMove, true)
       window.removeEventListener('mouseup', handleMouseUp, true)
     }
-  }, [containerRef, pluginRef, setSelectedProteinIds, toggleProteinSelection, clearSelection])
+  }, [containerRef, pluginRef, setSelectedProteinIds])
+
+  const drawerOpen       = selectedProteinIds.length > 0
+  const isComparison     = selectedProteinIds.length >= 2
+  const visibleCount     = isComparison ? Math.min(selectedProteinIds.length, 4) : 1
 
   return (
-    <ViewerCanvas containerRef={containerRef} tooltip={tooltip}>
+    <ViewerCanvas
+      containerRef={containerRef}
+      tooltip={tooltip}
+      drawerOpen={drawerOpen}
+      isComparison={isComparison}
+      drawerVisibleCount={visibleCount}
+    >
       <div />
     </ViewerCanvas>
   )

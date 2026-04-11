@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, ShieldCheck, Droplets, Scale, ShieldAlert } from 'lucide-react'
+import { CircleCheck, TriangleAlert, ShieldCheck, Droplets, Scale, ShieldAlert } from 'lucide-react'
 import { SectionLabel } from './SectionLabel'
 
 function StatusRow({ icon: Icon, label, value, score, tone }) {
@@ -51,7 +51,7 @@ function AlertsRow({ label, alerts }) {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 backdrop-blur-sm">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />
+          <CircleCheck className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />
         </div>
         <div className="flex flex-1 items-center justify-between gap-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -67,7 +67,7 @@ function AlertsRow({ label, alerts }) {
     <div className="rounded-xl border border-rose-200/60 bg-rose-50/50 px-4 py-3 backdrop-blur-sm">
       <div className="flex items-center gap-3 mb-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100">
-          <AlertTriangle className="h-4 w-4 text-rose-600" strokeWidth={2.5} />
+          <TriangleAlert className="h-4 w-4 text-rose-600" strokeWidth={2.5} />
         </div>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
           {label}

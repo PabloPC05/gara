@@ -1,61 +1,57 @@
-import { SidebarHybridInput } from '../navigation/SidebarHybridInput'
+const proteinLabel = (protein) =>
+  protein?.name ||
+  protein?.uniprotId ||
+  protein?.pdbId ||
+  protein?.id ||
+  'Unknown protein'
 
-export function EntryRow({
-  index,
-  entry,
-  isSelectable,
-  isFocused,
-  isActive,
-  canAppend,
-  onChange,
-  onFocus,
-  onActivate,
-  onSubmit,
-}) {
-  const ringClass = isActive
-    ? 'shadow-[0_0_0_2px_rgba(227,30,36,0.6)]'
-    : isFocused
-      ? 'shadow-[0_0_0_1px_rgba(227,30,36,0.4)]'
-      : 'shadow-none'
+const proteinMeta = (protein) => {
+  const bits = []
+  if (protein?.organism && protein.organism !== 'Unknown') bits.push(protein.organism)
+  if (protein?.length) bits.push(`${protein.length} aa`)
+  if (protein?.uniprotId) bits.push(`UniProt ${protein.uniprotId}`)
+  else if (protein?.pdbId) bits.push(`PDB ${protein.pdbId}`)
+  return bits.join(' · ')
+}
 
-  const indexClass = isActive
-    ? 'text-[#e31e24]'
-    : isSelectable
-      ? 'text-slate-200'
-      : 'text-slate-300'
+export function EntryRow({ index, protein, isActive, onToggleSelection }) {
+  const label = proteinLabel(protein)
+  const meta  = proteinMeta(protein)
 
   return (
-    <div
-      className={`relative flex items-center gap-1.5 rounded-2xl transition-colors ${
-        isSelectable ? 'cursor-pointer' : 'cursor-default'
-      } ${
+    <button
+      type="button"
+      className={`w-full rounded-2xl border px-3 py-2 text-left transition-colors ${
         isActive
-          ? 'bg-[#fde8e8]/60'
-          : isSelectable
-            ? 'bg-transparent hover:bg-slate-50'
-            : 'bg-transparent'
+          ? 'border-[#f2b8b9] bg-[#fde8e8]/70 shadow-[0_0_0_2px_rgba(227,30,36,0.12)]'
+          : 'border-slate-200 bg-white hover:bg-slate-50'
       }`}
-      onClick={(event) => {
-        if (!isSelectable) return
-        onActivate?.(event)
-      }}
-      role={isSelectable ? 'button' : undefined}
-      tabIndex={isSelectable ? -1 : undefined}
+      onClick={() => onToggleSelection?.(protein?.id)}
     >
-      <span
-        className={`shrink-0 w-4 text-right text-[9px] font-black tabular-nums select-none transition-colors ${indexClass}`}
-      >
-        {String(index + 1).padStart(2, '0')}
-      </span>
-      <div className="flex-1 min-w-0">
-        <SidebarHybridInput
-          value={entry.value}
-          onChange={(value) => onChange(entry.id, value)}
-          onSubmit={canAppend ? onSubmit : undefined}
-          onFocus={onFocus}
-          className={`${ringClass} shadow-none bg-white`}
-        />
+      <div className="flex items-start gap-3">
+        <span
+          className={`mt-0.5 shrink-0 w-4 text-right text-[9px] font-black tabular-nums select-none transition-colors ${
+            isActive ? 'text-[#e31e24]' : 'text-slate-300'
+          }`}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className={`truncate text-sm font-semibold ${isActive ? 'text-slate-900' : 'text-slate-800'}`}>
+            {label}
+          </p>
+          {meta ? (
+            <p className="mt-1 truncate text-[11px] text-slate-500">
+              {meta}
+            </p>
+          ) : (
+            <p className="mt-1 truncate text-[11px] text-slate-400">
+              {protein?.id}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </button>
   )
 }

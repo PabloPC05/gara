@@ -1,5 +1,27 @@
 import type { JobOutputsResponse } from "../api/types";
 
+interface UnifiedProteinBio {
+  solubility: number;
+  solubilityLabel: string;
+  instabilityIndex: number;
+  instabilityLabel: string;
+  toxicityAlert: boolean;
+  toxicityLabel: string;
+  molecularWeight: number;
+}
+
+interface UnifiedProtein {
+  id: string;
+  name: string;
+  uniprotId: string | null;
+  pdbId: string | null;
+  length: number;
+  organism: string;
+  plddtMean: number | null;
+  biological: UnifiedProteinBio | null;
+  source: "mock" | "api";
+}
+
 function classifyPlddt(mean: number): string {
   if (mean > 90) return "muy alta (> 90)";
   if (mean > 70) return "alta (70–90)";
@@ -64,4 +86,86 @@ Propiedades biológicas:
 - Índice de inestabilidad: ${bio.instability_index.toFixed(1)}${bio.stability_status ? ` — ${bio.stability_status}` : ""}.
 - ${toxLine}
 - ${allerLine}${ssLine}`;
+}
+
+// ─── Builders para UnifiedProtein (datos ya normalizados en el store) ──────────
+
+export function buildExplanationPromptFromUnified(protein: UnifiedProtein): string {
+  const identitySection = protein.name && protein.name !== "Unknown"
+    ? [
+        `Proteína: ${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}.`,
+        protein.uniprotId ? `UniProt ID: ${protein.uniprotId}.` : null,
+        protein.pdbId ? `PDB ID: ${protein.pdbId}.` : null,
+      ].filter(Boolean).join("\n")
+    : "Proteína NO identificada en la base de datos. Los datos biológicos pueden ser sintéticos.";
+
+  const unknownNote = protein.name === "Unknown"
+    ? "\nIMPORTANTE: deja claro que los datos biológicos son sintéticos y que la predicción es menos fiable."
+    : "";
+
+  const plddtLine = protein.plddtMean != null
+    ? `- pLDDT medio: ${protein.plddtMean.toFixed(1)} — confianza ${classifyPlddt(protein.plddtMean)}`
+    : "- Confianza estructural: no disponible";
+
+  const bioLines = protein.biological
+    ? [
+        `- Solubilidad: ${protein.biological.solubility.toFixed(1)}% (${protein.biological.solubilityLabel}).`,
+        `- Estabilidad: índice de inestabilidad ${protein.biological.instabilityIndex.toFixed(1)} — ${protein.biological.instabilityLabel}.`,
+        `- Toxicidad: ${protein.biological.toxicityLabel}.`,
+        `- Peso molecular: ${(protein.biological.molecularWeight / 1000).toFixed(1)} kDa.`,
+      ].join("\n")
+    : "- Propiedades biológicas: no disponibles.";
+
+  return `Eres un bioinformático experto explicando resultados de predicción de estructura proteica.
+
+AUDIENCIA: Biólogo con conocimientos de biología molecular pero sin experiencia en bioinformática computacional.
+TONO: Colega que explica de forma accesible y honesta, sin condescendencia.
+IDIOMA: Español.
+FORMATO: Exactamente dos párrafos separados por una línea en blanco. Sin títulos, sin viñetas, sin markdown.
+- Párrafo 1: Calidad global de la predicción y propiedades biológicas más relevantes (solubilidad, estabilidad, alertas si las hay).
+- Párrafo 2: Para qué sirve este resultado y qué limitaciones tiene.${unknownNote}
+
+DATOS:
+
+${identitySection}
+
+Confianza estructural:
+${plddtLine}
+
+Propiedades biológicas:
+${bioLines}`;
+}
+
+export function buildChatPrompt(
+  protein: UnifiedProtein,
+  history: { role: "user" | "ai"; content: string }[],
+  userMessage: string,
+): string {
+  const proteinDesc = protein.name && protein.name !== "Unknown"
+    ? `${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}`
+    : "proteína desconocida";
+
+  const bioSummary = protein.biological
+    ? `Solubilidad: ${protein.biological.solubilityLabel}. Estabilidad: ${protein.biological.instabilityLabel}. Toxicidad: ${protein.biological.toxicityLabel}. Peso molecular: ${(protein.biological.molecularWeight / 1000).toFixed(1)} kDa.`
+    : "Propiedades biológicas no disponibles.";
+
+  const plddtSummary = protein.plddtMean != null
+    ? `Confianza estructural (pLDDT medio): ${protein.plddtMean.toFixed(1)}.`
+    : "";
+
+  const context = `Eres un bioinformático experto respondiendo preguntas sobre una proteína específica.
+Hablas con un biólogo. Responde en español, de forma concisa y accesible.
+
+Proteína actual: ${proteinDesc}
+${plddtSummary}
+${bioSummary}`;
+
+  const historyText = history
+    .map((m) => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`)
+    .join("\n");
+
+  return `${context}
+
+${historyText ? `Conversación:\n${historyText}\n` : ""}Usuario: ${userMessage}
+Asistente:`;
 }

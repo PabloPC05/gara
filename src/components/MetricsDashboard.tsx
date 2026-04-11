@@ -1,9 +1,9 @@
-import { useRef, useEffect } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
 import type { BiologicalDataOutput, ConfidenceData, ProteinMetadata, StructuralDataOutput } from '../api/types';
+import PaeHeatmap from './PaeHeatmap';
 
 interface MetricsDashboardProps {
   biologicalData: BiologicalDataOutput;
@@ -99,38 +99,9 @@ function PlddtChart({ confidence }: { confidence: ConfidenceData }) {
   );
 }
 
-/* ─── PAE Heatmap ─── */
-function PaeHeatmap({ confidence }: { confidence: ConfidenceData }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+/* ─── PAE Heatmap wrapper for glass-card context ─── */
+function PaeHeatmapWrapper({ confidence }: { confidence: ConfidenceData }) {
   const paeMatrix = confidence.pae_matrix;
-
-  useEffect(() => {
-    if (!canvasRef.current || !paeMatrix.length) return;
-
-    const canvas = canvasRef.current;
-    const size = Math.min(paeMatrix.length, 300);
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const scale = paeMatrix.length / size;
-
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const row = Math.floor(y * scale);
-        const col = Math.floor(x * scale);
-        const val = paeMatrix[row]?.[col] ?? 0;
-        // Green (low PAE = good) to Red (high PAE = bad)
-        const norm = Math.min(val / 30, 1);
-        const r = Math.round(norm * 255);
-        const g = Math.round((1 - norm) * 200);
-        const b = Math.round((1 - norm) * 50);
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
-  }, [paeMatrix]);
 
   if (!paeMatrix.length) {
     return (
@@ -142,38 +113,7 @@ function PaeHeatmap({ confidence }: { confidence: ConfidenceData }) {
 
   return (
     <div className="glass-card animate-fade-in-up" style={{ padding: 20 }}>
-      <h3 style={{
-        fontSize: 16,
-        fontWeight: 600,
-        color: 'var(--color-text-primary)',
-        marginBottom: 16,
-      }}>
-        🗺️ Heatmap PAE (Predicted Aligned Error)
-      </h3>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: '100%',
-            maxWidth: 300,
-            height: 'auto',
-            aspectRatio: '1',
-            borderRadius: 8,
-            border: '1px solid var(--color-border-secondary)',
-            imageRendering: 'pixelated',
-          }}
-        />
-      </div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginTop: 10,
-        fontSize: 11,
-        color: 'var(--color-text-muted)',
-      }}>
-        <span>🟢 Bajo error (alta confianza)</span>
-        <span>🔴 Alto error (baja confianza)</span>
-      </div>
+      <PaeHeatmap paeMatrix={paeMatrix} meanPae={confidence.mean_pae} />
     </div>
   );
 }
@@ -328,7 +268,7 @@ export default function MetricsDashboard({ biologicalData, proteinMetadata, stru
       <PlddtChart confidence={structuralData.confidence} />
 
       {/* PAE Heatmap */}
-      <PaeHeatmap confidence={structuralData.confidence} />
+      <PaeHeatmapWrapper confidence={structuralData.confidence} />
 
       {/* Secondary structure */}
       {ss && (

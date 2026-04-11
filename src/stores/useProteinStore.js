@@ -33,7 +33,18 @@ export const useProteinStore = create((set, get) => ({
     for (const p of proteins) {
       if (p?.id) next[p.id] = p
     }
-    set({ proteinsById: next, loadingById: {}, errorById: {} })
+    set((state) => {
+      const nextSelection = state.activeProteinId && next[state.activeProteinId]
+        ? [state.activeProteinId]
+        : []
+      return {
+        proteinsById: next,
+        selectedProteinIds: nextSelection,
+        activeProteinId: nextSelection[0] ?? null,
+        loadingById: {},
+        errorById: {},
+      }
+    })
   },
 
   removeProtein: (id) =>
@@ -67,26 +78,19 @@ export const useProteinStore = create((set, get) => ({
   // ── Selección ───────────────────────────────────────────────────────
 
   setSelectedProteinIds: (ids) => {
-    const newIds = Array.isArray(ids) ? ids : [ids]
-    set({
-      selectedProteinIds: newIds,
-      activeProteinId: newIds.length > 0 ? newIds[newIds.length - 1] : null,
-    })
+    const newIds = normalizeSelection(ids)
+    set({ selectedProteinIds: newIds, activeProteinId: newIds[0] ?? null })
   },
 
   toggleProteinSelection: (id) => {
-    const { selectedProteinIds } = get()
-    const newIds = selectedProteinIds.includes(id)
-      ? selectedProteinIds.filter((pid) => pid !== id)
-      : [...selectedProteinIds, id]
-    set({
-      selectedProteinIds: newIds,
-      activeProteinId: newIds.length > 0 ? newIds[newIds.length - 1] : null,
-    })
+    const { activeProteinId } = get()
+    const newIds = activeProteinId === id ? [] : normalizeSelection(id)
+    set({ selectedProteinIds: newIds, activeProteinId: newIds[0] ?? null })
   },
 
   setActiveProteinId: (id) => {
-    set({ selectedProteinIds: [id], activeProteinId: id })
+    const nextSelection = normalizeSelection(id)
+    set({ selectedProteinIds: nextSelection, activeProteinId: nextSelection[0] ?? null })
   },
 
   clearSelection: () => set({ selectedProteinIds: [], activeProteinId: null }),
@@ -97,4 +101,11 @@ function omitKey(obj, key) {
   const next = { ...obj }
   delete next[key]
   return next
+}
+
+// Política single-selection: solo se mantiene el primer ID válido de la lista.
+function normalizeSelection(ids) {
+  const list = Array.isArray(ids) ? ids : [ids]
+  const firstValidId = list.find((id) => typeof id === 'string' && id.length > 0)
+  return firstValidId ? [firstValidId] : []
 }
