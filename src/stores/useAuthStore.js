@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
+  sendPasswordResetEmail,
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -24,7 +25,6 @@ const useAuthStore = create((set) => ({
     set({ loading: true, error: null });
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      // El estado del usuario se actualizará automáticamente por onAuthStateChanged
     } catch (error) {
       set({ error: error.message, loading: false });
     }
@@ -36,6 +36,17 @@ const useAuthStore = create((set) => ({
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       set({ error: error.message, loading: false });
+    }
+  },
+
+  resetPassword: async (email) => {
+    set({ loading: true, error: null });
+    try {
+      await sendPasswordResetEmail(auth, email);
+      set({ loading: false });
+    } catch (error) {
+      set({ error: error.message, loading: false });
+      throw error;
     }
   },
 
