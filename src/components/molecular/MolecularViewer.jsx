@@ -1,49 +1,32 @@
 import { useEffect, useRef } from 'react'
 import { use3DmolViewer } from '../../hooks/use3DmolViewer'
-import { buildHelixPdb } from '../../lib/helix'
 import { useProteinStore } from '../../stores/useProteinStore'
-import { MOCK_HELIX_LAYOUTS, buildMockProteinCatalog } from '../../data/mockProteinCatalog'
 import ViewerCanvas from './ViewerCanvas'
 
-// El visor mock renderiza las mismas hélices que publicamos al store
-// via `replaceCatalog`, así que ambos lados comparten ids y colores.
-const HELICES = MOCK_HELIX_LAYOUTS.map((layout) => ({
-  id: layout.id,
-  residues: layout.residues,
-  offset: layout.offset,
-  color: layout.color,
-}))
-
-// Padding del bounding box en píxeles: margen alrededor de la proyección
-// 2D de la hélice dentro del cual un click cuenta como impacto directo.
-const PICK_BBOX_PADDING_PX = 10
-// Fallback cuando el click no cae dentro de ningún bbox: la hélice más
-// cercana gana si su átomo más próximo está dentro de este radio.
-const PICK_NEAREST_FALLBACK_PX = 25
+// Paleta cíclica para distinguir proteínas cuando hay varias en escena.
+const PROTEIN_COLORS = [
+  0x3b82f6, 0x10b981, 0xec4899, 0xf59e0b,
+  0x8b5cf6, 0x06b6d4, 0xef4444, 0x14b8a6,
+]
 const HALO_COLOR = 0xfde047
 
+// Radios de picking: idénticos al visor mock para coherencia UX.
+const PICK_BBOX_PADDING_PX = 10
+const PICK_NEAREST_FALLBACK_PX = 25
+
 const baseStyle = (color) => ({
-  sphere: { color, radius: 1.1 },
-  stick: { color, radius: 0.4 },
+  cartoon: { color, opacity: 0.95, thickness: 0.6, style: 'edged' },
+  stick: { color, radius: 0.15, hidden: false },
 })
 
 const haloStyle = {
-  sphere: { color: HALO_COLOR, radius: 1.6, opacity: 0.5 },
-  stick: { color: HALO_COLOR, radius: 0.55, opacity: 0.5 },
+  cartoon: { color: HALO_COLOR, opacity: 0.35 },
+  sphere: { color: HALO_COLOR, radius: 1.1, opacity: 0.25 },
 }
 
-const applyModelStyle = (entry, isActive) => {
+const applyEntryStyle = (entry, isActive) => {
   entry.model.setStyle({}, baseStyle(entry.color))
   if (isActive) entry.model.setStyle({}, haloStyle, true)
-}
-
-const translateModelAtoms = (model, dx, dy, dz) => {
-  const atoms = model.selectedAtoms({})
-  for (const atom of atoms) {
-    atom.x += dx
-    atom.y += dy
-    atom.z += dz
-  }
 }
 
 const computeCentroid = (model) => {
@@ -58,9 +41,17 @@ const computeCentroid = (model) => {
   return { x: x / atoms.length, y: y / atoms.length, z: z / atoms.length }
 }
 
-// Rotación rígida alrededor del centroide: yaw en torno al eje Y del mundo,
-// pitch en torno al eje X. Preserva distancias entre átomos → la forma no
-// se deforma, solo cambia el ángulo del modelo.
+const translateModelAtoms = (model, dx, dy, dz) => {
+  const atoms = model.selectedAtoms({})
+  for (const atom of atoms) {
+    atom.x += dx
+    atom.y += dy
+    atom.z += dz
+  }
+}
+
+// Rotación rígida: yaw en torno al eje Y del mundo, pitch en torno al X.
+// Preserva todas las distancias → la forma no se deforma, solo el ángulo.
 const rotateModelAroundCentroid = (model, c, yaw, pitch) => {
   const atoms = model.selectedAtoms({})
   const cy = Math.cos(yaw)
@@ -85,39 +76,83 @@ const rotateModelAroundCentroid = (model, c, yaw, pitch) => {
   }
 }
 
-export default function MolecularUniverseMock({ background = '#ffffff' }) {
+/**
+ * Sincroniza el Map de entries con el catálogo del store:
+ *  - Quita los modelos cuya proteína ya no está en `proteinsById`.
+ *  - Añade modelos nuevos para proteínas recién cargadas.
+ * Devuelve `true` si hubo cambios, para disparar zoomTo desde fuera.
+ */
+function syncModels(viewer, modelMap, proteinsById, selectedIds) {
+  let dirty = false
+
+  for (const [id, entry] of modelMap) {
+    if (!proteinsById[id]) {
+      try {
+        viewer.removeModel(entry.model)
+      } catch (_) {
+        // si el viewer ya descartó el modelo, ignoramos
+      }
+      modelMap.delete(id)
+      dirty = true
+    }
+  }
+
+  const ids = Object.keys(proteinsById)
+  let colorIndex = 0
+  for (const id of ids) {
+    if (modelMap.has(id)) {
+      colorIndex++
+      continue
+    }
+    const protein = proteinsById[id]
+    if (!protein?.pdbData) {
+      colorIndex++
+      continue
+    }
+    const color = PROTEIN_COLORS[colorIndex % PROTEIN_COLORS.length]
+    const model = viewer.addModel(protein.pdbData, 'pdb')
+    const entry = { id, model, color }
+    applyEntryStyle(entry, selectedIds.includes(id))
+    modelMap.set(id, entry)
+    dirty = true
+    colorIndex++
+  }
+
+  return dirty
+}
+
+export default function MolecularViewer({ background = '#ffffff' }) {
+  const proteinsById = useProteinStore((state) => state.proteinsById)
   const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds)
   const setSelectedProteinIds = useProteinStore((state) => state.setSelectedProteinIds)
   const toggleProteinSelection = useProteinStore((state) => state.toggleProteinSelection)
   const clearSelection = useProteinStore((state) => state.clearSelection)
-  const replaceCatalog = useProteinStore((state) => state.replaceCatalog)
 
-  // Bootstrap del catálogo mock en el store. Así drawer, sidebar y visor
-  // leen todos de la misma fuente, igual que hará la API real.
-  useEffect(() => {
-    replaceCatalog(buildMockProteinCatalog())
-  }, [replaceCatalog])
-
-  // Ref en vivo para que los handlers de mouse (que se registran una sola vez)
-  // siempre lean el valor actual del store sin cerrarse sobre uno viejo.
+  // Refs en vivo para que los listeners (registrados una vez) lean siempre
+  // el estado actual del store sin capturarlo por closure.
   const selectedProteinIdsRef = useRef(selectedProteinIds)
   useEffect(() => {
     selectedProteinIdsRef.current = selectedProteinIds
   }, [selectedProteinIds])
 
-  const modelsRef = useRef([])
+  const proteinsByIdRef = useRef(proteinsById)
+  useEffect(() => {
+    proteinsByIdRef.current = proteinsById
+  }, [proteinsById])
+
+  // Map id → { model, color } con los modelos 3Dmol activos.
+  const modelsRef = useRef(new Map())
   const dragStateRef = useRef(null)
 
   const { containerRef, viewerRef } = use3DmolViewer({
     config: { backgroundColor: background },
     setup: (viewer) => {
-      const entries = HELICES.map((helix) => {
-        const model = viewer.addModel(buildHelixPdb(helix.residues, helix.offset), 'pdb')
-        const entry = { id: helix.id, color: helix.color, model }
-        applyModelStyle(entry, selectedProteinIdsRef.current.includes(helix.id))
-        return entry
-      })
-      modelsRef.current = entries
+      syncModels(
+        viewer,
+        modelsRef.current,
+        proteinsByIdRef.current,
+        selectedProteinIdsRef.current,
+      )
       viewer.zoomTo()
       viewer.render()
       viewer.resize()
@@ -125,13 +160,29 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
     deps: [background],
   })
 
-  // Sidebar → 3D: cuando cambian los seleccionados, repinta los halos.
+  // Catálogo del store → escena: añade/quita modelos cuando cambia.
   useEffect(() => {
     const viewer = viewerRef.current
-    if (!viewer || modelsRef.current.length === 0) return
-    modelsRef.current.forEach((entry) =>
-      applyModelStyle(entry, selectedProteinIds.includes(entry.id))
+    if (!viewer) return
+    const dirty = syncModels(
+      viewer,
+      modelsRef.current,
+      proteinsById,
+      selectedProteinIdsRef.current,
     )
+    if (dirty && modelsRef.current.size > 0) {
+      viewer.zoomTo()
+    }
+    viewer.render()
+  }, [proteinsById, viewerRef])
+
+  // Selección → escena: repinta halos sin tocar la geometría.
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer || modelsRef.current.size === 0) return
+    for (const [id, entry] of modelsRef.current) {
+      applyEntryStyle(entry, selectedProteinIds.includes(id))
+    }
     viewer.render()
   }, [selectedProteinIds, viewerRef])
 
@@ -139,21 +190,16 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
     const container = containerRef.current
     if (!container) return
 
-    // `modelToScreen` de 3Dmol devuelve coordenadas **de página** (suma el
-    // offset del canvas en el documento + pageXOffset). Por eso el cursor
-    // se compara también en coordenadas de página, no viewport — así ambos
-    // lados de la comparación están en el mismo sistema.
+    // `modelToScreen` devuelve coordenadas DE PÁGINA (incluye offset del
+    // canvas en el documento), así que comparamos con event.pageX/pageY.
     const pickEntryAt = (pageX, pageY) => {
       const viewer = viewerRef.current
       if (!viewer) return null
       const px = pageX
       const py = pageY
 
-      // Para cada hélice proyectamos todos sus átomos a pantalla y
-      // calculamos bbox + distancia al átomo más cercano (en cuadrado,
-      // sin sqrt para ahorrar trabajo en el bucle caliente).
       const infos = []
-      for (const entry of modelsRef.current) {
+      for (const [, entry] of modelsRef.current) {
         const atoms = entry.model.selectedAtoms({})
         if (atoms.length === 0) continue
 
@@ -174,15 +220,11 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
           const d2 = ddx * ddx + ddy * ddy
           if (d2 < minAtomDistSq) minAtomDistSq = d2
         }
-
         infos.push({ entry, minX, maxX, minY, maxY, minAtomDistSq })
       }
 
       if (infos.length === 0) return null
 
-      // Capa 1: impacto directo → hélices cuyo bbox (con padding) contiene
-      // el cursor. Si hay varias (solapamiento), gana la que tenga el átomo
-      // más cercano al cursor en 2D.
       const pad = PICK_BBOX_PADDING_PX
       const insideHits = infos.filter(
         (h) =>
@@ -191,14 +233,11 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
           py >= h.minY - pad &&
           py <= h.maxY + pad,
       )
-
       if (insideHits.length > 0) {
         insideHits.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
         return insideHits[0].entry
       }
 
-      // Capa 2: ningún bbox contiene el click, pero tal vez alguna hélice
-      // está lo bastante cerca como para aceptarla (clicks justo al borde).
       infos.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
       const nearest = infos[0]
       const maxSq = PICK_NEAREST_FALLBACK_PX * PICK_NEAREST_FALLBACK_PX
@@ -234,9 +273,6 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       const hit = pickEntryAt(event.pageX, event.pageY)
 
       if (!hit) {
-        // Click sobre zona vacía del visor → deselecciona todo.
-        // Dejamos bubblear el evento para que Radix detecte el outside click
-        // del drawer también, aunque con clearSelection el panel ya se cierra.
         clearSelection()
         return
       }
@@ -244,8 +280,7 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       event.stopImmediatePropagation()
       event.preventDefault()
 
-      // Ctrl + click sobre una proteína ya seleccionada → rotación rígida.
-      // No cambia la selección: conserva la activa y empieza el drag de rotación.
+      // Ctrl + click sobre una seleccionada → rotación rígida en sitio.
       if (event.ctrlKey && selectedProteinIdsRef.current.includes(hit.id)) {
         dragStateRef.current = {
           mode: 'rotate',
@@ -257,7 +292,6 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
         return
       }
 
-      // 3D → store: selecciona la hélice clickeada (shift = toggle multi).
       if (event.shiftKey) {
         toggleProteinSelection(hit.id)
       } else {
@@ -289,7 +323,7 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       const dyPx = event.clientY - drag.lastY
       if (dxPx === 0 && dyPx === 0) return
 
-      const entry = modelsRef.current.find((m) => m.id === drag.id)
+      const entry = modelsRef.current.get(drag.id)
       if (entry) {
         if (drag.mode === 'rotate') {
           const yaw = dxPx * 0.01
@@ -299,7 +333,7 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
           const world = screenDeltaToWorld(dxPx, dyPx, drag.basis)
           translateModelAtoms(entry.model, world.x, world.y, 0)
         }
-        applyModelStyle(entry, true)
+        applyEntryStyle(entry, true)
       }
       drag.lastX = event.clientX
       drag.lastY = event.clientY

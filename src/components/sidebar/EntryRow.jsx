@@ -12,19 +12,19 @@ export function EntryRow({
   onSubmit,
 }) {
   const ringClass = isActive
-    ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.6)]'
+    ? 'shadow-[0_0_0_2px_rgba(227,30,36,0.6)]'
     : isFocused
-      ? 'shadow-[0_0_0_1px_rgba(59,130,246,0.4)]'
+      ? 'shadow-[0_0_0_1px_rgba(227,30,36,0.4)]'
       : 'shadow-none'
 
   const indexClass = isActive
-    ? 'text-blue-500'
+    ? 'text-[#e31e24]'
     : 'text-slate-200'
 
   return (
     <div
       className={`relative flex items-center gap-1.5 rounded-2xl transition-colors cursor-pointer ${
-        isActive ? 'bg-blue-50/60' : 'bg-transparent hover:bg-slate-50'
+        isActive ? 'bg-[#fde8e8]/60' : 'bg-transparent hover:bg-slate-50'
       }`}
       onClick={onActivate}
       role="button"

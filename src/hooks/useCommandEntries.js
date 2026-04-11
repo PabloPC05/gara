@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useProteinLoader } from './useProteinLoader'
 
 const VALID_AMINO_ACIDS = new Set('GAVLIMFWPSTCYNQDEKRH'.split(''))
 const PDB_ID_PATTERN = /^[0-9][a-zA-Z0-9]{3}$/
@@ -35,6 +36,10 @@ const createInitialEntries = () =>
 export function useCommandEntries() {
   const [entries, setEntries] = useState(createInitialEntries)
   const [focusedId, setFocusedId] = useState(() => entries[0].id)
+  const { load, isMock } = useProteinLoader()
+  // IDs de entrada cuyo valor ya disparó un submit contra la API: evita
+  // relanzar jobs cuando el usuario pulsa + varias veces o reenfoca.
+  const submittedRef = useRef(new Set())
 
   const updateEntry = useCallback((id, value) => {
     setEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, value } : entry)))
@@ -43,13 +48,23 @@ export function useCommandEntries() {
   const canAppend = useMemo(() => entries.every((entry) => isValidEntry(entry.value)), [entries])
 
   const appendEntry = useCallback(() => {
-    setEntries((prev) => {
-      if (!prev.every((entry) => isValidEntry(entry.value))) return prev
-      const newEntry = createEntry()
-      setFocusedId(newEntry.id)
-      return [...prev, newEntry]
-    })
-  }, [])
+    if (!canAppend) return
+    // Modo real: lanza load() por cada entrada nueva que aún no se había
+    // enviado. Modo mock: isMock=true y load es no-op, así que nada pasa.
+    if (!isMock) {
+      for (const entry of entries) {
+        if (submittedRef.current.has(entry.id)) continue
+        submittedRef.current.add(entry.id)
+        load(entry.value).catch(() => {
+          // el error queda registrado en el store (errorById);
+          // aquí solo evitamos romper el flujo de append.
+        })
+      }
+    }
+    const newEntry = createEntry()
+    setFocusedId(newEntry.id)
+    setEntries((prev) => [...prev, newEntry])
+  }, [canAppend, entries, isMock, load])
 
   return {
     entries,

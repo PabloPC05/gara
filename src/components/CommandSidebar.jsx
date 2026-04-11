@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react'
 import {
   Sidebar,
   SidebarContent,
@@ -6,11 +7,12 @@ import {
 } from './ui/sidebar.tsx'
 import { useCommandEntries } from '../hooks/useCommandEntries'
 import { useProteinStore } from '../stores/useProteinStore'
-import { CollapsedPeek } from './sidebar/CollapsedPeek'
-import { SidebarBrand } from './sidebar/SidebarBrand'
+import { useUIStore } from '../stores/useUIStore'
 import { EntriesSection } from './sidebar/EntriesSection'
 import { StatusFooter } from './sidebar/StatusFooter'
 import { ProteinComparison } from './sidebar/ProteinComparison'
+import { FilesSection } from './sidebar/FilesSection'
+import { SearchSection } from './sidebar/SearchSection'
 
 export function CommandSidebar() {
   const { entries, focusedId, canAppend, updateEntry, appendEntry, focusEntry } =
@@ -20,49 +22,51 @@ export function CommandSidebar() {
   const setSelectedProteinIds = useProteinStore((state) => state.setSelectedProteinIds)
   const toggleProteinSelection = useProteinStore((state) => state.toggleProteinSelection)
 
-  const { setOpen } = useSidebar()
+  const activeTab = useUIStore((state) => state.activeTab)
+  const { setOpen, open } = useSidebar()
 
-  const handleSidebarEnter = () => {
-    setOpen(true)
-  }
-
-  const handleSidebarLeave = () => {
-    setOpen(false)
-  }
+  // Sincronizar el estado del sidebar de shadcn con nuestro activeTab
+  useEffect(() => {
+    if (activeTab === null && open) {
+      setOpen(false)
+    } else if (activeTab !== null && !open) {
+      setOpen(true)
+    }
+  }, [activeTab, open, setOpen])
 
   return (
     <Sidebar
-      collapsible="icon"
-      className="relative border-r border-slate-200 bg-[#fafbfc] transition-[width] duration-[140ms] ease-out"
-      onMouseEnter={handleSidebarEnter}
-      onMouseLeave={handleSidebarLeave}
+      collapsible="offcanvas"
+      className="border-r border-slate-200 bg-[#fafbfc]"
     >
-      {/* Estado colapsado: la flecha rota y se desvanece al expandirse */}
-      <CollapsedPeek />
-
-      {/* Estado expandido: entrada suave del contenido */}
-      <div className="flex h-full w-full flex-col overflow-hidden opacity-100 translate-x-0 transition-[opacity,transform] duration-[120ms] ease-out will-change-transform group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:-translate-x-1">
-        <SidebarBrand />
-
+      <div className="flex h-full w-full flex-col overflow-hidden">
         <SidebarContent className="px-3 pt-5 pb-3">
-          <EntriesSection
-            entries={entries}
-            focusedId={focusedId}
-            canAppend={canAppend}
-            selectedProteinIds={selectedProteinIds}
-            onChangeEntry={updateEntry}
-            onFocusEntry={focusEntry}
-            onAppend={appendEntry}
-            onToggleProteinSelection={toggleProteinSelection}
-            onSetSelectedProteinIds={setSelectedProteinIds}
-          />
+          {activeTab === 'plus' && (
+            <>
+              <EntriesSection
+                entries={entries}
+                focusedId={focusedId}
+                canAppend={canAppend}
+                selectedProteinIds={selectedProteinIds}
+                onChangeEntry={updateEntry}
+                onFocusEntry={focusEntry}
+                onAppend={appendEntry}
+                onToggleProteinSelection={toggleProteinSelection}
+                onSetSelectedProteinIds={setSelectedProteinIds}
+              />
 
-          <SidebarSeparator className="my-4" />
+              <SidebarSeparator className="my-4" />
 
-          <ProteinComparison selectedProteinIds={selectedProteinIds} />
+              <ProteinComparison selectedProteinIds={selectedProteinIds} />
+            </>
+          )}
+
+          {activeTab === 'files' && <FilesSection />}
+          
+          {activeTab === 'search' && <SearchSection />}
         </SidebarContent>
 
-        <StatusFooter count={entries.length} />
+        {activeTab === 'plus' && <StatusFooter count={entries.length} />}
       </div>
     </Sidebar>
   )

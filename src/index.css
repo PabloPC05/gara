@@ -42,6 +42,14 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-400;
   }
+
+  /* Forzar que el sidebar se superponga al contenido (3D viewer) en lugar
+     de desplazarlo. El shadcn-sidebar usa un div "sidebar-gap" que reserva
+     espacio en el flujo; poniéndolo a 0, el contenedor fixed del sidebar
+     flota sobre el contenido cuando se expande. */
+  [data-slot="sidebar"] > [data-slot="sidebar-gap"] {
+    width: 0 !important;
+  }
 }
 
 @layer utilities {
