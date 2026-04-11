@@ -9,7 +9,7 @@ export const TONE_CLASSES = {
 export function Badge({ tone = 'slate', label, value }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${TONE_CLASSES[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-none border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${TONE_CLASSES[tone]}`}
     >
       <span className="opacity-60">{label}</span>
       <span>{value}</span>

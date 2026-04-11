@@ -1,24 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Moon, Sun, Globe, LogOut, User,
-  LayoutList, CheckCircle2,
+  LayoutList, CheckCircle2, Cloud
 } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import useAuthStore from '../../stores/useAuthStore';
+import { getAccessToken } from '../../lib/googleDriveService';
 
 // ── Toggle switch reutilizable ────────────────────────────────────────────────
 function Toggle({ on, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-colors flex-shrink-0 ${
+      className={`w-9 h-5 rounded-none flex items-center px-0.5 transition-colors flex-shrink-0 ${
         on ? 'bg-[#e31e24]' : 'bg-slate-300 dark:bg-[#3f3f46]'
       }`}
       aria-checked={on}
       role="switch"
     >
       <span
-        className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+        className={`w-4 h-4 rounded-none bg-white shadow-sm transition-transform ${
           on ? 'translate-x-4' : 'translate-x-0'
         }`}
       />
@@ -30,7 +31,7 @@ function Toggle({ on, onClick }) {
 function SettingRow({ icon: Icon, label, children, onClick }) {
   return (
     <div
-      className={`flex items-center justify-between px-2 py-2 rounded-md text-xs ${
+      className={`flex items-center justify-between px-2 py-2 rounded-none text-xs ${
         onClick ? 'hover:bg-slate-100 dark:hover:bg-[#27272a] cursor-pointer transition-colors' : ''
       }`}
       onClick={onClick}
@@ -75,6 +76,18 @@ export function SettingsSection() {
   const user   = useAuthStore((s) => s.user);
   const logOut = useAuthStore((s) => s.logOut);
 
+  const [googleConnected, setGoogleConnected] = useState(false);
+
+  useEffect(() => {
+    // Check connection status periodically or on mount
+    const checkStatus = () => {
+      setGoogleConnected(!!getAccessToken());
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4 text-sm text-slate-700 dark:text-slate-300 h-full">
 
@@ -106,7 +119,7 @@ export function SettingsSection() {
             <button
               key={code}
               onClick={() => setLanguage(code)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-none text-xs font-medium transition-colors ${
                 language === code
                   ? 'bg-slate-900 text-white dark:bg-[#e31e24]'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#27272a] dark:text-slate-300 dark:hover:bg-[#3f3f46]'
@@ -117,6 +130,19 @@ export function SettingsSection() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── Servicios Conectados ── */}
+      <div className="flex flex-col">
+        <SectionTitle>Servicios Conectados</SectionTitle>
+        <SettingRow icon={Cloud} label="Google Workspace">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${googleConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+            <span className="text-[10px] font-medium text-slate-500">
+              {googleConnected ? 'Conectado' : 'No vinculado'}
+            </span>
+          </div>
+        </SettingRow>
       </div>
 
       {/* ── Visor 3D ── */}
@@ -130,7 +156,7 @@ export function SettingsSection() {
                 key={color}
                 onClick={() => setViewerBackground(color)}
                 title={label}
-                className={`flex-1 h-7 rounded-md border-2 transition-colors ${
+                className={`flex-1 h-7 rounded-none border-2 transition-colors ${
                   viewerBackground === color
                     ? 'border-[#e31e24]'
                     : 'border-transparent hover:border-slate-300 dark:hover:border-[#3f3f46]'
@@ -158,7 +184,7 @@ export function SettingsSection() {
           <SettingRow icon={User} label={user.email} />
           <button
             onClick={logOut}
-            className="flex items-center gap-2 px-2 py-2 rounded-md text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-[#27272a] transition-colors w-full"
+            className="flex items-center gap-2 px-2 py-2 rounded-none text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-[#27272a] transition-colors w-full"
           >
             <LogOut size={14} className="flex-shrink-0" />
             Cerrar sesión

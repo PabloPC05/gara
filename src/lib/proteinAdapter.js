@@ -30,6 +30,8 @@
  * @property {string|null} pdbData  Alias legacy de structureData (pdb plano).
  * @property {string|null} cifData  Alias legacy para mmCIF (API v1).
  * @property {'mock'|'api'} source
+ * @property {string|null} fasta  Texto FASTA original de entrada.
+ * @property {string|null} sequence  Secuencia de aminoácidos en letras simples.
  * @property {Object} _raw  Forma API-style para el drawer de detalles.
  */
 
@@ -189,6 +191,41 @@ function buildRawFromApi(validated) {
   }
 }
 
+// ─── Extracción de secuencia ────────────────────────────────────────────────
+
+function extractSequenceFromFasta(fasta) {
+  if (!fasta || typeof fasta !== 'string') return null
+  return fasta
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('>'))
+    .join('')
+    .replace(/\s/g, '') || null
+}
+
+const THREE_TO_ONE = {
+  ALA: 'A', ARG: 'R', ASN: 'N', ASP: 'D', CYS: 'C',
+  GLN: 'Q', GLU: 'E', GLY: 'G', HIS: 'H', ILE: 'I',
+  LEU: 'L', LYS: 'K', MET: 'M', PHE: 'F', PRO: 'P',
+  SER: 'S', THR: 'T', TRP: 'W', TYR: 'Y', VAL: 'V',
+  SEC: 'U', PYL: 'O', MSE: 'M',
+}
+
+function extractSequenceFromPdb(pdbData) {
+  if (!pdbData || typeof pdbData !== 'string') return null
+  const residues = []
+  for (const line of pdbData.split('\n')) {
+    if (line.length < 27) continue
+    const rec = line.substring(0, 6)
+    if (rec !== 'ATOM  ' && rec !== 'HETATM') continue
+    const atomName = line.substring(12, 16).trim()
+    if (atomName !== 'CA') continue
+    const resName = line.substring(17, 20).trim()
+    const one = THREE_TO_ONE[resName]
+    if (one) residues.push(one)
+  }
+  return residues.length > 0 ? residues.join('') : null
+}
+
 // ─── Conversores públicos ─────────────────────────────────────────────────────
 
 /**
@@ -228,7 +265,7 @@ export function mockToUnified(id, mock, pdbData = null) {
  * @param {Object} validated
  * @returns {UnifiedProtein|null}
  */
-export function apiToUnified(validated) {
+export function apiToUnified(validated, originalFasta = null) {
   if (!validated || validated.status !== 'COMPLETED') return null
 
   const structural = validated.structuralData
@@ -290,6 +327,8 @@ export function apiToUnified(validated) {
     // como CIF para evitar priorizar strings no parseables del campo legacy.
     cifData: structure.format === 'cif' ? structure.data : null,
     source: 'api',
+    fasta: originalFasta,
+    sequence: extractSequenceFromFasta(originalFasta) || extractSequenceFromPdb(structure.data),
     _raw: buildRawFromApi(validated),
   }
 }

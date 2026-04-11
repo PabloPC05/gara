@@ -16,6 +16,7 @@ if (savedDarkMode) document.documentElement.classList.add('dark')
 export const useUIStore = create((set) => ({
   // ── Sidebar / UI ─────────────────────────────────────────────────────
   activeTab:        'plus', // 'plus' | 'files' | 'search' | 'ai' | 'settings' | null
+  currentView:      'viewer', // 'viewer' | 'dashboard'
   detailsPanelOpen: false,  // panel de detalles de proteína (independiente de la selección)
   darkMode:    savedDarkMode,
   language:    savedLanguage,   // 'es' | 'en'
@@ -29,6 +30,8 @@ export const useUIStore = create((set) => ({
   // ── Acciones sidebar / UI ─────────────────────────────────────────────
   setActiveTab: (tab) =>
     set((state) => ({ activeTab: state.activeTab === tab ? null : tab })),
+
+  setCurrentView: (view) => set({ currentView: view }),
 
   setDetailsPanelOpen: (open) => set({ detailsPanelOpen: open }),
 
@@ -62,4 +65,8 @@ export const useUIStore = create((set) => ({
 
   setViewerRepresentation: (repr) => set({ viewerRepresentation: repr }),
   setViewerLighting: (lighting) => set({ viewerLighting: lighting }),
+
+  // ── Residuo enfocado (FastaBar ↔ Visor 3D) ───────────────────────────
+  focusedResidue: null, // { seqId: number } | null
+  setFocusedResidue: (residue) => set({ focusedResidue: residue }),
 }))

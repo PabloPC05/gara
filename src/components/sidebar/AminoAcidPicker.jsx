@@ -1,34 +1,32 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '../ui/sheet.tsx'
-import { isValidEntry } from '../../hooks/useCommandEntries'
 
-// Standard 3-letter abbreviations, ordered GAVLIMFWPSTCYNQDEKRH
 const AMINO_ACIDS = [
-  { letter: 'G', abbr: 'Gly', name: 'Glycine',       group: 'np' },
-  { letter: 'A', abbr: 'Ala', name: 'Alanine',       group: 'np' },
-  { letter: 'V', abbr: 'Val', name: 'Valine',        group: 'np' },
-  { letter: 'L', abbr: 'Leu', name: 'Leucine',       group: 'np' },
-  { letter: 'I', abbr: 'Ile', name: 'Isoleucine',    group: 'np' },
-  { letter: 'M', abbr: 'Met', name: 'Methionine',    group: 'np' },
-  { letter: 'F', abbr: 'Phe', name: 'Phenylalanine', group: 'np' },
-  { letter: 'W', abbr: 'Trp', name: 'Tryptophan',    group: 'np' },
-  { letter: 'P', abbr: 'Pro', name: 'Proline',       group: 'np' },
-  { letter: 'S', abbr: 'Ser', name: 'Serine',        group: 'po' },
-  { letter: 'T', abbr: 'Thr', name: 'Threonine',     group: 'po' },
-  { letter: 'C', abbr: 'Cys', name: 'Cysteine',      group: 'po' },
-  { letter: 'Y', abbr: 'Tyr', name: 'Tyrosine',      group: 'po' },
-  { letter: 'N', abbr: 'Asn', name: 'Asparagine',    group: 'po' },
-  { letter: 'Q', abbr: 'Gln', name: 'Glutamine',     group: 'po' },
-  { letter: 'D', abbr: 'Asp', name: 'Aspartate',     group: 'ac' },
-  { letter: 'E', abbr: 'Glu', name: 'Glutamate',     group: 'ac' },
-  { letter: 'K', abbr: 'Lys', name: 'Lysine',        group: 'ba' },
-  { letter: 'R', abbr: 'Arg', name: 'Arginine',      group: 'ba' },
-  { letter: 'H', abbr: 'His', name: 'Histidine',     group: 'ba' },
+  { letter: 'G', abbr: 'Gly', name: 'Glicina',        nameEn: 'Glycine',       group: 'np', formula: 'C₂H₅NO₂',     mw: 75.03,  pI: 5.97, charge: 0,  desc: 'El aminoácido más pequeño. Confiere flexibilidad a las cadenas polipeptídicas.' },
+  { letter: 'A', abbr: 'Ala', name: 'Alanina',        nameEn: 'Alanine',       group: 'np', formula: 'C₃H₇NO₂',     mw: 89.09,  pI: 6.01, charge: 0,  desc: 'Aminoácido no polar muy común. Estabiliza estructuras α-hélice.' },
+  { letter: 'V', abbr: 'Val', name: 'Valina',         nameEn: 'Valine',        group: 'np', formula: 'C₅H₁₁NO₂',    mw: 117.15, pI: 5.96, charge: 0,  desc: 'Aminoácido esencial. Importante en el metabolismo muscular.' },
+  { letter: 'L', abbr: 'Leu', name: 'Leucina',        nameEn: 'Leucine',       group: 'np', formula: 'C₆H₁₃NO₂',    mw: 131.17, pI: 5.98, charge: 0,  desc: 'Aminoácido esencial. Regula la síntesis proteica vía mTOR.' },
+  { letter: 'I', abbr: 'Ile', name: 'Isoleucina',     nameEn: 'Isoleucine',    group: 'np', formula: 'C₆H₁₃NO₂',    mw: 131.17, pI: 6.02, charge: 0,  desc: 'Aminoácido esencial isómero de leucina. Participa en el metabolismo energético.' },
+  { letter: 'M', abbr: 'Met', name: 'Metionina',      nameEn: 'Methionine',    group: 'np', formula: 'C₅H₁₁NO₂S',   mw: 149.21, pI: 5.74, charge: 0,  desc: 'Inicia la síntesis de proteínas. Fuente de grupos metilo.' },
+  { letter: 'F', abbr: 'Phe', name: 'Fenilalanina',   nameEn: 'Phenylalanine', group: 'np', formula: 'C₉H₁₁NO₂',    mw: 165.19, pI: 5.48, charge: 0,  desc: 'Aminoácido esencial aromático. Precursor de tirosina y neurotransmisores.' },
+  { letter: 'W', abbr: 'Trp', name: 'Triptófano',     nameEn: 'Tryptophan',    group: 'np', formula: 'C₁₁H₁₂N₂O₂',  mw: 204.23, pI: 5.89, charge: 0,  desc: 'Aminoácido esencial con anillo indol. Precursor de serotonina.' },
+  { letter: 'P', abbr: 'Pro', name: 'Prolina',        nameEn: 'Proline',       group: 'np', formula: 'C₅H₉NO₂',     mw: 115.13, pI: 6.30, charge: 0,  desc: 'Aminoácido cíclico. Introduce giros en la cadena y estabiliza giros β.' },
+  { letter: 'S', abbr: 'Ser', name: 'Serina',         nameEn: 'Serine',        group: 'po', formula: 'C₃H₇NO₃',     mw: 105.09, pI: 5.68, charge: 0,  desc: 'Aminoácido polar. Sitio frecuente de fosforilación en señalización celular.' },
+  { letter: 'T', abbr: 'Thr', name: 'Treonina',       nameEn: 'Threonine',     group: 'po', formula: 'C₄H₉NO₃',     mw: 119.12, pI: 5.60, charge: 0,  desc: 'Aminoácido esencial polar. También sitio de fosforilación y glicosilación.' },
+  { letter: 'C', abbr: 'Cys', name: 'Cisteína',       nameEn: 'Cysteine',      group: 'po', formula: 'C₃H₇NO₂S',    mw: 121.16, pI: 5.07, charge: 0,  desc: 'Forma puentes disulfuro que estabilizan la estructura 3D de proteínas.' },
+  { letter: 'Y', abbr: 'Tyr', name: 'Tirosina',       nameEn: 'Tyrosine',      group: 'po', formula: 'C₉H₁₁NO₃',    mw: 181.19, pI: 5.66, charge: 0,  desc: 'Aminoácido aromático polar. Sitio de fosforilación en cascadas de señalización.' },
+  { letter: 'N', abbr: 'Asn', name: 'Asparagina',     nameEn: 'Asparagine',    group: 'po', formula: 'C₄H₈N₂O₃',    mw: 132.12, pI: 5.41, charge: 0,  desc: 'Aminoácido polar. Sitio frecuente de N-glicosilación en proteínas.' },
+  { letter: 'Q', abbr: 'Gln', name: 'Glutamina',      nameEn: 'Glutamine',     group: 'po', formula: 'C₅H₁₀N₂O₃',   mw: 146.15, pI: 5.65, charge: 0,  desc: 'Aminoácido polar más abundante en sangre. Donador de grupos amino.' },
+  { letter: 'D', abbr: 'Asp', name: 'Ácido aspártico',nameEn: 'Aspartate',      group: 'ac', formula: 'C₄H₇NO₄',     mw: 133.10, pI: 2.77, charge: -1, desc: 'Aminoácido ácido. Participa en la catálisis enzimática como ácido general.' },
+  { letter: 'E', abbr: 'Glu', name: 'Ácido glutámico',nameEn: 'Glutamate',      group: 'ac', formula: 'C₅H₉NO₄',     mw: 147.13, pI: 3.22, charge: -1, desc: 'Neurotransmisor excitatorio principal. Dona grupos amino en transaminación.' },
+  { letter: 'K', abbr: 'Lys', name: 'Lisina',         nameEn: 'Lysine',        group: 'ba', formula: 'C₆H₁₄N₂O₂',   mw: 146.19, pI: 9.74, charge: +1, desc: 'Aminoácido básico esencial. Participa en uniones iónicas y metilación de histonas.' },
+  { letter: 'R', abbr: 'Arg', name: 'Arginina',       nameEn: 'Arginine',      group: 'ba', formula: 'C₆H₁₄N₄O₂',   mw: 174.20, pI: 10.76,charge: +1, desc: 'Aminoácido más básico. Forma múltiples puentes de hidrógeno en sitios activos.' },
+  { letter: 'H', abbr: 'His', name: 'Histidina',      nameEn: 'Histidine',     group: 'ba', formula: 'C₆H₉N₃O₂',    mw: 155.16, pI: 7.59, charge: 0,  desc: 'Aminoácido con imidazol. Residuo catalítico clave por su pKa cercano a 7.' },
 ]
 
 const GROUP_STYLES = {
@@ -38,6 +36,8 @@ const GROUP_STYLES = {
   ba: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300',
 }
 
+const GROUP_LABELS = { np: 'No polar', po: 'Polar', ac: 'Ácido', ba: 'Básico' }
+
 const LEGEND = [
   { group: 'np', dot: 'bg-amber-300',  label: 'Apolares' },
   { group: 'po', dot: 'bg-sky-300',    label: 'Polares'  },
@@ -45,30 +45,84 @@ const LEGEND = [
   { group: 'ba', dot: 'bg-indigo-300', label: 'Básicos'  },
 ]
 
+function AminoAcidTooltip({ aa, buttonRef }) {
+  if (!aa || !buttonRef) return null
+
+  const rect = buttonRef.getBoundingClientRect()
+  const parentRect = buttonRef.closest('[data-keyboard-root]')?.getBoundingClientRect()
+  const offsetX = parentRect ? rect.left - parentRect.left + rect.width / 2 : rect.width / 2
+
+  return (
+    <div
+      className="absolute z-50 pointer-events-none"
+      style={{
+        bottom: '100%',
+        left: offsetX,
+        transform: 'translateX(-50%)',
+        marginBottom: 8,
+      }}
+    >
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-900/10 p-3 w-56">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl font-black text-slate-800">{aa.letter}</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[11px] font-semibold text-slate-700">{aa.name}</span>
+            <span className="text-[9px] text-slate-400">{aa.nameEn}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] mb-2">
+          <div>
+            <span className="text-slate-400">Abreviatura</span>
+            <p className="font-semibold text-slate-700">{aa.abbr}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">Tipo</span>
+            <p className="font-semibold text-slate-700">{GROUP_LABELS[aa.group]}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">Fórmula</span>
+            <p className="font-semibold text-slate-700">{aa.formula}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">Masa (Da)</span>
+            <p className="font-semibold text-slate-700">{aa.mw.toFixed(2)}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">pI</span>
+            <p className="font-semibold text-slate-700">{aa.pI.toFixed(2)}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">Carga (pH 7)</span>
+            <p className="font-semibold text-slate-700">{aa.charge > 0 ? `+${aa.charge}` : aa.charge < 0 ? `${aa.charge}` : '0'}</p>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-slate-500 leading-snug">{aa.desc}</p>
+      </div>
+      <div className="flex justify-center">
+        <div className="w-3 h-3 bg-white border-b border-r border-slate-200 rotate-45 -mt-[7px]" />
+      </div>
+    </div>
+  )
+}
+
 export function AminoAcidPicker({
   open,
   onOpenChange,
-  activeEntry,
-  draftSequence,
-  entryIndex,
   onAppendLetter,
   onDeleteLast,
   onClear,
   onConfirm,
+  canConfirm,
 }) {
-  const isDraft = !activeEntry
-  const sequence = activeEntry?.value ?? draftSequence ?? ''
-  const isValid  = isValidEntry(sequence)
-  const isEmpty  = sequence.length === 0
-  const canConfirm = isDraft ? isValid : true
-  const confirmLabel = isDraft ? 'Añadir secuencia' : 'Listo'
-  const shortcutHint = isDraft ? 'Backspace borra · Enter añade' : 'Backspace borra · Enter cierra'
+  const [hoveredAa, setHoveredAa] = useState(null)
+  const [hoveredRef, setHoveredRef] = useState(null)
 
   const handleKeyDown = (event) => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
 
     if (event.key === 'Backspace') {
-      if (isEmpty) return
       event.preventDefault()
       onDeleteLast()
       return
@@ -86,103 +140,31 @@ export function AminoAcidPicker({
       <SheetContent
         side="bottom"
         showOverlay={false}
-        showCloseButton={true}
+        showCloseButton={false}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           event.currentTarget.focus()
         }}
+        onPointerDownOutside={(event) => { event.preventDefault() }}
+        onInteractOutside={(event) => { event.preventDefault() }}
         onKeyDown={handleKeyDown}
-        className="rounded-t-2xl border-t border-slate-100 bg-white p-0 shadow-2xl shadow-slate-900/10"
+        className="rounded-none border-t border-slate-100 bg-white p-0 shadow-2xl shadow-slate-900/10"
       >
-        {/* Full-width wrapper — minimal horizontal padding */}
-        <div className="px-6 pt-4 pb-5">
+        <div className="px-6 pt-3 pb-8 relative" data-keyboard-root>
+          {hoveredAa && (
+            <AminoAcidTooltip aa={hoveredAa} buttonRef={hoveredRef} />
+          )}
 
-          {/* Header — pr-8 keeps space for the absolute close button */}
-          <SheetHeader className="p-0 mb-3 pr-8">
-            <div className="flex items-center gap-2">
-              {entryIndex != null && (
-                <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#e31e24] text-white text-[9px] font-black tabular-nums select-none">
-                  {String(entryIndex + 1).padStart(2, '0')}
-                </span>
-              )}
+          <div className="flex items-center justify-between mb-2">
+            <SheetHeader className="p-0">
               <SheetTitle className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest leading-none">
-                Constructor de secuencia
+                Teclado de aminoácidos
               </SheetTitle>
-            </div>
-          </SheetHeader>
-
-          {/* Sequence display + controls — side by side */}
-          <div className="flex items-stretch gap-2 mb-4">
-
-            {/* Sequence block — grows to fill available width */}
-            <div className={`flex-1 min-w-0 rounded-xl border px-4 py-2 flex items-center gap-3 overflow-x-auto transition-colors ${
-              isEmpty
-                ? 'border-slate-100 bg-slate-50/60'
-                : isValid
-                  ? 'border-emerald-200 bg-emerald-50/40'
-                  : 'border-slate-100 bg-slate-50/60'
-            }`}>
-              {isEmpty ? (
-                <span className="text-slate-300 text-sm italic select-none">
-                  Pulsa un aminoácido para empezar…
-                </span>
-              ) : (
-                <>
-                  <span className={`font-mono text-xl tracking-wider font-semibold whitespace-nowrap leading-none ${
-                    isValid ? 'text-emerald-700' : 'text-slate-700'
-                  }`}>
-                    {sequence.toUpperCase()}
-                  </span>
-                  <span className="text-[11px] font-bold tabular-nums text-slate-400 shrink-0 leading-none">
-                    {sequence.length} aa
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Controls — stacked vertically, aligned to the right of the sequence */}
-            <div className="shrink-0 flex flex-col justify-center gap-1.5">
-              <button
-                onClick={onDeleteLast}
-                disabled={isEmpty}
-                className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200
-                           text-xs font-semibold text-slate-500 bg-white
-                           hover:bg-slate-50 hover:border-slate-300
-                           disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                ⌫ Borrar
-              </button>
-              <button
-                onClick={onClear}
-                disabled={isEmpty}
-                className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200
-                           text-xs font-semibold text-slate-500 bg-white
-                           hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200
-                           disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                ✕ Limpiar
-              </button>
-            </div>
+            </SheetHeader>
 
           </div>
 
-          {/* Amino acid grid — 10 cols × 2 rows, 3-letter codes */}
-          <div className="grid grid-cols-10 gap-1.5 mb-3">
-            {AMINO_ACIDS.map((aa) => (
-              <button
-                key={aa.letter}
-                title={`${aa.name} · ${aa.letter}`}
-                onClick={() => onAppendLetter(aa.letter)}
-                className={`h-9 flex items-center justify-center rounded-lg border text-[11px] font-semibold
-                            active:scale-95
-                            transition-all duration-75 ${GROUP_STYLES[aa.group]}`}
-              >
-                {aa.abbr}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
               {LEGEND.map(({ group, dot, label }) => (
                 <span key={group} className="flex items-center gap-1">
@@ -192,19 +174,52 @@ export function AminoAcidPicker({
               ))}
             </div>
 
-            <button
-              onClick={onConfirm}
-              disabled={!canConfirm}
-              className="inline-flex items-center justify-center rounded-lg bg-[#e31e24] px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white transition-colors hover:bg-[#c91b20] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-            >
-              {confirmLabel}
-            </button>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                onClick={onDeleteLast}
+                title="Borrar último"
+                className="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-slate-300
+                           text-slate-600 bg-white
+                           hover:bg-slate-100 hover:border-slate-400 active:scale-95 transition-all"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+              </button>
+              <button
+                onClick={onClear}
+                title="Limpiar todo"
+                className="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-slate-300
+                           text-sm font-extrabold text-slate-600 bg-white
+                           hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 active:scale-95 transition-all"
+              >
+                AC
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={!canConfirm}
+                title="Procesar secuencia"
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#e31e24] text-white transition-all hover:bg-[#c91b20] active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+            </div>
           </div>
 
-          <p className="mt-3 text-[10px] font-medium text-slate-400">
-            {shortcutHint}
-          </p>
-
+          <div className="grid grid-cols-10 gap-1.5">
+            {AMINO_ACIDS.map((aa) => (
+              <button
+                key={aa.letter}
+                title={`${aa.name} · ${aa.letter}`}
+                onClick={() => onAppendLetter(aa.letter)}
+                onMouseEnter={(e) => { setHoveredAa(aa); setHoveredRef(e.currentTarget) }}
+                onMouseLeave={() => { setHoveredAa(null); setHoveredRef(null) }}
+                className={`h-9 flex items-center justify-center rounded-lg border text-[11px] font-semibold
+                            active:scale-95
+                            transition-all duration-75 ${GROUP_STYLES[aa.group]}`}
+              >
+                {aa.abbr}
+              </button>
+            ))}
+          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -28,18 +28,19 @@ export function useProteinLoader() {
       const trimmed = input?.trim()
       if (!trimmed) return null
 
-      let jobId = null
-      try {
-        const submission = await submitJob(toFasta(trimmed))
-        jobId = submission.jobId
-        setProteinLoading(jobId)
+    let jobId = null
+    try {
+      const fasta = toFasta(trimmed)
+      const submission = await submitJob(fasta)
+      jobId = submission.jobId
+      setProteinLoading(jobId)
 
-        const job = await pollJob(jobId, { signal })
-        if (job.status !== 'COMPLETED') {
-          throw new ApiError(`Job ${jobId} terminó con estado ${job.status}`)
-        }
+      const job = await pollJob(jobId, { signal })
+      if (job.status !== 'COMPLETED') {
+        throw new ApiError(`Job ${jobId} terminó con estado ${job.status}`)
+      }
 
-        const unified = apiToUnified(job)
+      const unified = apiToUnified(job, fasta)
         if (!unified) {
           throw new ApiError('Respuesta de la API sin datos suficientes')
         }

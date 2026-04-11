@@ -66,6 +66,11 @@ export default {
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
     },
   },
   plugins: [],

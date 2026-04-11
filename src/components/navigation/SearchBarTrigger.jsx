@@ -13,12 +13,12 @@ export function SearchBarTrigger() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="flex items-center gap-2 rounded-md border border-slate-600 bg-white/5 px-3 py-1 cursor-text hover:bg-white/10 hover:border-slate-500 transition-colors w-[600px]">
+        <div className="flex items-center gap-2 rounded-lg border border-slate-600 bg-white/5 px-3 py-1 cursor-text hover:bg-white/10 hover:border-slate-500 transition-colors w-[600px]">
           <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
           <span className="text-[12px] text-slate-400 truncate">Buscar...</span>
         </div>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-[600px] bg-[#111113] border border-white/10 shadow-2xl backdrop-blur-md rounded-xl p-1.5 z-[60]">
+      <DropdownMenuContent align="center" className="w-[600px] bg-[#111113] border border-white/10 shadow-2xl backdrop-blur-md rounded-lg p-1.5 z-[60]">
         <DropdownMenuItem className={itemClass}>
           Search Proteins
         </DropdownMenuItem>

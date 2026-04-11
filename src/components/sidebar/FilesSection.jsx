@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Download, Loader2 } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
 import { useProteinLoader } from '@/hooks/useProteinLoader';
 import { useProteinStore } from '@/stores/useProteinStore';
 import { validateFasta } from '@/utils/fasta';
+import ExportDriveButton from '../ExportDriveButton';
 
 export function FilesSection() {
   const [fasta, setFasta] = useState('');
@@ -72,7 +73,7 @@ export function FilesSection() {
           <div className="flex gap-1">
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 text-slate-500 hover:text-[#e31e24] hover:bg-[#fde8e8] rounded-md transition-colors flex items-center gap-1"
+              className="p-1.5 text-slate-500 hover:text-[#e31e24] hover:bg-[#fde8e8] rounded-none transition-colors flex items-center gap-1"
               title="Cargar archivo FASTA"
             >
               <Upload size={16} />
@@ -84,24 +85,20 @@ export function FilesSection() {
               accept=".fasta,.fas,.fa,.seq,.txt" 
               className="hidden" 
             />
-            <button 
-              onClick={handleFileDownload}
-              disabled={!fasta}
-              className="p-1.5 text-slate-500 hover:text-[#e31e24] hover:bg-[#fde8e8] rounded-md transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed flex items-center gap-1"
-              title="Descargar FASTA"
-            >
-              <Download size={16} />
-            </button>
+            <ExportDriveButton 
+              proteinData={{ name: 'Manual Sequence', fasta: fasta }}
+              minimal={true}
+            />
           </div>
         </div>
         <textarea 
-          className="w-full h-48 p-3 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-xs shadow-sm"
+          className="w-full h-48 p-3 border border-slate-200 rounded-none focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-xs shadow-sm"
           placeholder=">Sequence_1&#10;MTEITAAMVKELRESTGAGMMDCKNALSET..."
           value={fasta}
           onChange={(e) => setFasta(e.target.value)}
         />
         <button
-          className="bg-slate-900 text-white py-2 rounded-md hover:bg-slate-800 transition-colors font-medium mt-2 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+          className="bg-slate-900 text-white py-2 rounded-none hover:bg-slate-800 transition-colors font-medium mt-2 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
           onClick={handleRun}
           disabled={!fasta || isLoading}
         >
@@ -111,16 +108,16 @@ export function FilesSection() {
       </div>
 
       {error && (
-        <div className="mt-3 border border-rose-200 rounded-md p-3 bg-rose-50 text-rose-700 text-xs">
+        <div className="mt-3 border border-rose-200 rounded-none p-3 bg-rose-50 text-rose-700 text-xs">
           {error}
         </div>
       )}
 
       {isLoading && (
-        <div className="mt-3 border border-slate-200 rounded-md p-3 bg-slate-50 shadow-sm">
+        <div className="mt-3 border border-slate-200 rounded-none p-3 bg-slate-50 shadow-sm">
           <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
           <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 w-3 h-3 rounded-full bg-[#e31e24] animate-pulse shadow-[0_0_8px_rgba(227,30,36,0.6)]" />
+            <span className="flex-shrink-0 w-3 h-3 rounded-none bg-[#e31e24] animate-pulse shadow-[0_0_8px_rgba(227,30,36,0.6)]" />
             <span className="font-mono text-sm font-semibold">RUNNING</span>
           </div>
           <p className="text-xs text-slate-400 mt-2">La primera petición puede tardar hasta 30 s.</p>
@@ -128,10 +125,10 @@ export function FilesSection() {
       )}
 
       {done && !isLoading && (
-        <div className="mt-3 border border-emerald-200 rounded-md p-3 bg-emerald-50 shadow-sm">
+        <div className="mt-3 border border-emerald-200 rounded-none p-3 bg-emerald-50 shadow-sm">
           <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
           <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            <span className="flex-shrink-0 w-3 h-3 rounded-none bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
             <span className="font-mono text-sm font-semibold">COMPLETED</span>
           </div>
         </div>

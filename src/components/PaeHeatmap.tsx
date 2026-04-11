@@ -195,15 +195,15 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   const plotDiv = (
     <div className="relative">
       {status === 'loading' && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-lg">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-none">
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500" />
+            <div className="h-4 w-4 animate-spin rounded-none border-2 border-slate-200 border-t-slate-500" />
             Cargando visualización...
           </div>
         </div>
       )}
       {status === 'error' && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-lg">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-none">
           <p className="text-[11px] text-slate-400">
             No se pudo cargar la visualización interactiva.
           </p>
@@ -223,12 +223,12 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
         {plotDiv}
         <div className="flex items-center justify-between px-1 text-[9px] text-slate-400">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-4 rounded-sm" style={{ background: 'linear-gradient(90deg, #1b3a9e, #4a9eed)' }} />
+            <span className="inline-block h-2 w-4 rounded-none" style={{ background: 'linear-gradient(90deg, #1b3a9e, #4a9eed)' }} />
             Bajo error
           </span>
           <span className="flex items-center gap-1">
             Alto error
-            <span className="inline-block h-2 w-4 rounded-sm" style={{ background: 'linear-gradient(90deg, #f57d15, #8b0000)' }} />
+            <span className="inline-block h-2 w-4 rounded-none" style={{ background: 'linear-gradient(90deg, #f57d15, #8b0000)' }} />
           </span>
         </div>
       </div>
@@ -236,10 +236,10 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-200/60 bg-white/60 px-4 py-3 backdrop-blur-sm">
+    <div className="flex flex-col gap-3 rounded-none border border-slate-200/60 bg-white/60 px-4 py-3 backdrop-blur-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-slate-100">
             <svg
               className="h-4 w-4 text-slate-500"
               viewBox="0 0 24 24"
@@ -265,7 +265,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-300 transition-colors hover:text-slate-500 cursor-pointer"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-none text-slate-300 transition-colors hover:text-slate-500 cursor-pointer"
                     >
                       <Info className="h-3 w-3" strokeWidth={2.5} />
                     </button>
@@ -301,7 +301,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
       <div className="flex items-center justify-between text-[9px] text-slate-400">
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-2 w-6 rounded-sm"
+            className="inline-block h-2 w-6 rounded-none"
             style={{ background: 'linear-gradient(90deg, #0d1b6e, #2264d4, #7ec8f0)' }}
           />
           Alta confianza (bajo error)
@@ -309,7 +309,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
         <span className="flex items-center gap-1.5">
           Baja confianza (alto error)
           <span
-            className="inline-block h-2 w-6 rounded-sm"
+            className="inline-block h-2 w-6 rounded-none"
             style={{ background: 'linear-gradient(90deg, #fde725, #f57d15, #8b0000)' }}
           />
         </span>

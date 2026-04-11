@@ -76,7 +76,7 @@ describe('ComparisonBody', () => {
 
   it('shows pagination indicators', () => {
     render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
-    const indicators = document.querySelectorAll('.h-1.rounded-full')
+    const indicators = document.querySelectorAll('.h-1.rounded-none')
     expect(indicators).toHaveLength(4)
   })
 

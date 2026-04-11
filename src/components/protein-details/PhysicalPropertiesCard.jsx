@@ -27,7 +27,7 @@ export function PhysicalPropertiesCard({ protein }) {
   return (
     <section>
       <SectionLabel icon={Beaker}>Propiedades físicas</SectionLabel>
-      <div className="rounded-xl border border-slate-200/60 bg-white/60 backdrop-blur-sm overflow-hidden">
+      <div className="rounded-none border border-slate-200/60 bg-white/60 backdrop-blur-sm overflow-hidden">
         <dl>
           {properties.map(({ label, value, highlight, icon: ItemIcon, hint }, i) => (
             <div

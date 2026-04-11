@@ -33,7 +33,7 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
     <div className="flex h-full flex-col overflow-hidden">
       <header className="shrink-0 border-b border-slate-100 px-7 pt-8 pb-5">
         <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200/60">
+          <div className="flex h-9 w-9 items-center justify-center rounded-none bg-blue-600 text-white shadow-lg shadow-blue-200/60">
             <Dna className="h-4 w-4" strokeWidth={2.5} />
           </div>
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">
@@ -56,7 +56,7 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
               return (
                 <span
                   key={i}
-                  className={`h-1 rounded-full transition-all duration-200 ${
+                  className={`h-1 rounded-none transition-all duration-200 ${
                     isVisible ? 'w-6 bg-blue-500' : 'w-1.5 bg-slate-200'
                   }`}
                 />
@@ -109,7 +109,7 @@ function NavButton({ side, disabled, onClick, label, children }) {
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`absolute top-1/2 ${position} z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-lg backdrop-blur transition hover:border-blue-200 hover:text-blue-600 hover:shadow-xl disabled:pointer-events-none disabled:opacity-0`}
+      className={`absolute top-1/2 ${position} z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-none border border-slate-200 bg-white/90 text-slate-500 shadow-lg backdrop-blur transition hover:border-blue-200 hover:text-blue-600 hover:shadow-xl disabled:pointer-events-none disabled:opacity-0`}
     >
       {children}
     </button>

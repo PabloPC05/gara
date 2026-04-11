@@ -30,7 +30,7 @@ export function ProteinComparison({ selectedProteinIds }) {
         Comparativa de Selección
       </SidebarGroupLabel>
       <SidebarGroupContent>
-        <div className="bg-white rounded-2xl border border-blue-100 p-3 shadow-sm flex flex-col gap-3">
+        <div className="bg-white rounded-none border border-blue-100 p-3 shadow-sm flex flex-col gap-3">
           <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-b border-slate-50 pb-2">
             <span className="w-1/3 truncate text-center uppercase">{p1.name}</span>
             <span className="w-1/3 text-center text-[#ea7660] font-black">VS</span>

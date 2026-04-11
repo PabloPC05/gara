@@ -11,6 +11,7 @@ import {
   Terminal,
 } from 'lucide-react'
 import PaeHeatmap from '@/components/PaeHeatmap'
+import ExportDriveButton from '../ExportDriveButton'
 
 /* ─────────────── utilidades numéricas ─────────────── */
 
@@ -226,7 +227,7 @@ function IdentityPanel({ v }) {
           {v.tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex rounded border border-slate-200 bg-slate-50/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+              className="inline-flex rounded-none border border-slate-200 bg-slate-50/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
             >
               {tag}
             </span>
@@ -263,7 +264,7 @@ function IdentityPanel({ v }) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[9px] font-medium text-slate-500 transition-colors hover:border-slate-400 hover:text-slate-900"
+              className="inline-flex items-center gap-1 rounded-none border border-slate-200 px-1.5 py-0.5 text-[9px] font-medium text-slate-500 transition-colors hover:border-slate-400 hover:text-slate-900"
             >
               <Icon className="h-2.5 w-2.5" strokeWidth={2} />
               {label}
@@ -406,7 +407,7 @@ function StructuralConfidence({ v }) {
       <div className="flex flex-col gap-4">
         {v.plddtMean != null && band && (
           <div className="flex flex-1 items-center gap-1.5">
-            <span className="h-5 w-1 rounded-sm shrink-0" style={{ backgroundColor: band.hex }} />
+            <span className="h-5 w-1 rounded-none shrink-0" style={{ backgroundColor: band.hex }} />
             <div className="flex flex-col leading-tight">
               <span className="text-[9px] text-slate-400">pLDDT</span>
               <span className="font-mono text-[12px] font-semibold tabular-nums text-slate-900">
@@ -515,7 +516,7 @@ function AlertRow({ label, alerts }) {
         {alerts.map((alert, i) => (
           <span
             key={i}
-            className="inline-flex rounded border border-amber-300 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+            className="inline-flex rounded-none border border-amber-300 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
           >
             {alert}
           </span>
@@ -608,7 +609,7 @@ function SequenceSection({ v }) {
 
   return (
     <Section title="Secuencia" aside={`${intFmt.format(sequence.length)} aa`}>
-      <div className="minimal-scrollbar max-h-32 overflow-y-auto rounded border border-slate-200 bg-slate-50/40 p-2 font-mono text-[10px] leading-[1.6] text-slate-700">
+      <div className="minimal-scrollbar max-h-32 overflow-y-auto rounded-none border border-slate-200 bg-slate-50/40 p-2 font-mono text-[10px] leading-[1.6] text-slate-700">
         {rows.map((row) => (
           <div key={row.start} className="flex gap-2 whitespace-nowrap">
             <span className="w-10 shrink-0 text-right tabular-nums text-slate-400">
@@ -627,7 +628,7 @@ function SequenceSection({ v }) {
         <button
           type="button"
           onClick={() => setShowChem((x) => !x)}
-          className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
+          className="inline-flex items-center gap-1 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
         >
           <FlaskConical className="h-3 w-3" strokeWidth={2} />
           {showChem ? 'Ocultar estructura química' : 'Ver estructura química'}
@@ -635,7 +636,7 @@ function SequenceSection({ v }) {
         <button
           type="button"
           onClick={handleDownload}
-          className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
+          className="inline-flex items-center gap-1 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
         >
           <Download className="h-3 w-3" strokeWidth={2} />
           FASTA
@@ -659,7 +660,7 @@ function ChemicalBackbone({ sequence }) {
   const y = 62
 
   return (
-    <div className="mt-2 overflow-hidden rounded border border-slate-200 bg-white">
+    <div className="mt-2 overflow-hidden rounded-none border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-100 px-2 py-1 font-mono text-[10px] text-slate-500">
         <span>
           Esqueleto peptídico — {intFmt.format(residues.length)}{' '}
@@ -731,15 +732,15 @@ function ChemicalBackbone({ sequence }) {
           enlace peptídico
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full border border-blue-800 bg-blue-100" />
+          <span className="inline-block h-2 w-2 rounded-none border border-blue-800 bg-blue-100" />
           N
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-full border border-slate-600 bg-slate-100" />
+          <span className="inline-block h-2.5 w-2.5 rounded-none border border-slate-600 bg-slate-100" />
           Cα
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full border border-red-800 bg-red-100" />
+          <span className="inline-block h-2 w-2 rounded-none border border-red-800 bg-red-100" />
           C=O
         </span>
         <span className="ml-auto text-slate-400">R = cadena lateral</span>
@@ -765,13 +766,47 @@ function ActionBar({ protein }) {
   }
 
   return (
-    <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-3">
+    <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-3 space-y-2">
+      <ExportDriveButton 
+        proteinData={protein}
+        summary={`Análisis de la proteína: ${protein.name}
+Organismo: ${protein.organism || 'N/A'}
+Longitud: ${protein.length} aa
+Descripción: ${protein.description || 'Sin descripción'}
+
+DATOS ESTRUCTURALES:
+- pLDDT Medio: ${protein.plddtMean || 'N/A'}
+- PAE Medio: ${protein.meanPae || 'N/A'}
+
+PROPIEDADES FÍSICO-QUÍMICAS:
+- Peso Molecular: ${protein.molecular_weight ? (protein.molecular_weight / 1000).toFixed(2) + ' kDa' : 'N/A'}
+- Punto Isoeléctrico: ${protein.isoelectric_point || 'N/A'}
+
+VIABILIDAD BIOLÓGICA:
+- Solubilidad: ${protein._raw?.biological_data?.solubility_score || 'N/A'}
+- Inestabilidad: ${protein._raw?.biological_data?.instability_index || 'N/A'}
+`}
+        paeData={protein?._raw?.structural_data?.confidence?.pae_matrix}
+        metrics={{
+          'Proteína': protein.name,
+          'Organismo': protein.organism,
+          'Longitud (aa)': protein.length,
+          'pLDDT Medio': protein.plddtMean,
+          'PAE Medio': protein.meanPae,
+          'Peso Molecular (Da)': protein.molecular_weight,
+          'Punto Isoeléctrico': protein.isoelectric_point,
+          'Solubilidad': protein._raw?.biological_data?.solubility_score,
+          'Inestabilidad': protein._raw?.biological_data?.instability_index,
+          'ID UniProt': protein.uniprotId,
+          'ID PDB': protein.pdbId
+        }}
+      />
       <div className="flex gap-2">
         <button
           type="button"
           disabled={!hasPdb}
           onClick={handleDownloadPdb}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-700 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-none bg-blue-600 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-700 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
         >
           <Download className="h-3 w-3" strokeWidth={2.5} />
           Descargar PDB
@@ -780,7 +815,7 @@ function ActionBar({ protein }) {
           type="button"
           disabled={!hasLogs}
           onClick={() => setShowLogs((x) => !x)}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 transition-colors hover:bg-slate-50 hover:border-slate-300 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 transition-colors hover:bg-slate-50 hover:border-slate-300 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
         >
           <Terminal className="h-3 w-3" strokeWidth={2.5} />
           {showLogs ? 'Ocultar logs' : 'Ver logs'}
@@ -788,7 +823,7 @@ function ActionBar({ protein }) {
       </div>
 
       {showLogs && hasLogs && (
-        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-900 p-3 max-h-40 overflow-y-auto">
+        <div className="mt-2 rounded-none border border-slate-200 bg-slate-900 p-3 max-h-40 overflow-y-auto">
           <div className="flex items-center gap-1.5 mb-1.5">
             <FileText className="h-3 w-3 text-slate-500" strokeWidth={2} />
             <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">

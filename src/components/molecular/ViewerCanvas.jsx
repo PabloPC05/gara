@@ -1,5 +1,6 @@
 import { getAminoAcidInfo } from '../../utils/aminoAcids';
 import { useProteinStore } from '../../stores/useProteinStore';
+import { useUIStore } from '../../stores/useUIStore';
 
 const DOT_GRID_STYLE = {
   backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
@@ -24,19 +25,21 @@ function plddtColor(score) {
 export default function ViewerCanvas({ containerRef, tooltip, children }) {
   const aminoInfo = tooltip ? getAminoAcidInfo(tooltip.code) : null;
   const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds);
-  const isDrawerOpen = selectedProteinIds.length > 0;
+  const detailsPanelOpen = useUIStore((state) => state.detailsPanelOpen);
   const isComparison = selectedProteinIds.length >= 2;
   const hasSelection = selectedProteinIds.length > 0;
+  const visibleCount = Math.min(selectedProteinIds.length, 4);
+  const defaultOpenDrawerWidth = isComparison
+    ? `min(${visibleCount * 22}rem, calc(100vw - 4rem))`
+    : '26rem';
 
-  // Calculamos el desplazamiento basado en el ancho del drawer definido en ProteinDetailsDrawer.jsx
-  let drawerOffset = '1.5rem'; // margen derecho por defecto
-  if (isDrawerOpen) {
-    if (isComparison) {
-      const visibleCount = Math.min(selectedProteinIds.length, 4);
-      drawerOffset = `calc(min(${visibleCount * 22}rem, 100vw - 4rem) + 3rem)`;
-    } else {
-      drawerOffset = '29rem'; // 26rem del drawer + 3rem de margen
-    }
+  // El tooltip usa la misma variable CSS del drawer para moverse en vivo durante el resize.
+  let drawerOffset = '1.5rem'; // margen derecho por defecto (sidebar colapsado)
+  if (detailsPanelOpen && hasSelection) {
+    drawerOffset = 'calc(var(--details-sidebar-width, var(--details-sidebar-width-default)) + 3rem)';
+  } else if (hasSelection) {
+    // Si hay selección pero el panel está cerrado, dejamos espacio para la tira colapsada (40px)
+    drawerOffset = '4rem'; 
   }
 
   return (
@@ -68,17 +71,20 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
       {/* Tooltip Equilibrado - Elevado a la derecha */}
       <div 
         className={`pointer-events-none fixed bottom-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
-        style={{ right: drawerOffset }}
+        style={{
+          right: drawerOffset,
+          '--details-sidebar-width-default': defaultOpenDrawerWidth,
+        }}
       >
         {tooltip && aminoInfo && (
-          <div className="rounded-2xl bg-white/95 border border-slate-200 p-4 shadow-2xl backdrop-blur-md min-w-[240px] flex flex-col gap-3">
+          <div className="rounded-none bg-white/95 border border-slate-200 p-4 shadow-2xl backdrop-blur-md min-w-[240px] flex flex-col gap-3">
             {/* Cabecera: Nombre y Badge de Código */}
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Residuo en foco</span>
                 <span className="text-[13px] font-bold text-slate-900 leading-none mt-0.5">{aminoInfo.name}</span>
               </div>
-              <div className="bg-blue-600 px-2 py-1 rounded-lg font-mono font-bold text-xs text-white shadow-sm shadow-blue-200">
+              <div className="bg-blue-600 px-2 py-1 rounded-none font-mono font-bold text-xs text-white shadow-sm shadow-blue-200">
                 {tooltip.code}
               </div>
             </div>
@@ -96,7 +102,7 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
               <div className="col-span-2 flex flex-col pt-0.5">
                 <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Propiedades</span>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                   <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
+                   <div className="w-2 h-2 rounded-none shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
                    <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
                 </div>
               </div>
@@ -110,7 +116,7 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
                   {tooltip.plddt}%
                 </span>
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+              <div className="w-full bg-slate-100 h-2 rounded-none overflow-hidden shadow-inner">
                 <div 
                   className="h-full transition-all duration-1000 ease-out shadow-sm" 
                   style={{ 

@@ -30,7 +30,7 @@ function MenubarTrigger({
     <MenubarPrimitive.Trigger
       data-slot="menubar-trigger"
       className={cn(
-        "cursor-default flex items-center rounded-sm px-3 py-1 text-[12px] font-medium text-slate-300 outline-none select-none transition-colors hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white data-[state=open]:bg-white/10 data-[state=open]:text-white",
+        "cursor-default flex items-center rounded-none px-3 py-1 text-[12px] font-medium text-slate-300 outline-none select-none transition-colors hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white data-[state=open]:bg-white/10 data-[state=open]:text-white",
         className
       )}
       {...props}
@@ -75,7 +75,7 @@ function MenubarItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/menubar-item relative flex cursor-default items-center rounded-lg px-2.5 py-1 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-[variant=destructive]:text-rose-400 data-[variant=destructive]:focus:bg-rose-500/10 data-[variant=destructive]:focus:text-rose-300 data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group/menubar-item relative flex cursor-default items-center rounded-none px-2.5 py-1 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-[variant=destructive]:text-rose-400 data-[variant=destructive]:focus:bg-rose-500/10 data-[variant=destructive]:focus:text-rose-300 data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -93,7 +93,7 @@ function MenubarCheckboxItem({
     <MenubarPrimitive.CheckboxItem
       data-slot="menubar-checkbox-item"
       className={cn(
-        "relative flex cursor-default items-center rounded-lg py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center rounded-none py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -118,7 +118,7 @@ function MenubarRadioItem({
     <MenubarPrimitive.RadioItem
       data-slot="menubar-radio-item"
       className={cn(
-        "relative flex cursor-default items-center rounded-lg py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center rounded-none py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -195,7 +195,7 @@ function MenubarSubTrigger({
       data-slot="menubar-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex cursor-default items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-open:bg-white/8 data-open:text-white [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex cursor-default items-center gap-1.5 rounded-none px-2.5 py-2 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-open:bg-white/8 data-open:text-white [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -211,14 +211,16 @@ function MenubarSubContent({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
   return (
-    <MenubarPrimitive.SubContent
-      data-slot="menubar-sub-content"
-      className={cn(
-        "z-50 min-w-32 origin-(--radix-menubar-content-transform-origin) overflow-hidden bg-[#1e1e22] text-slate-200 shadow-2xl shadow-black/40 ring-1 ring-white/6 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-        className
-      )}
-      {...props}
-    />
+    <MenubarPrimitive.Portal>
+      <MenubarPrimitive.SubContent
+        data-slot="menubar-sub-content"
+        className={cn(
+          "z-50 min-w-32 origin-(--radix-menubar-content-transform-origin) overflow-hidden bg-[#1e1e22] text-slate-200 shadow-2xl shadow-black/40 ring-1 ring-white/6 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          className
+        )}
+        {...props}
+      />
+    </MenubarPrimitive.Portal>
   )
 }
 

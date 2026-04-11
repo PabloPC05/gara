@@ -63,14 +63,14 @@ export function buildExplanationPrompt(outputs: JobOutputsResponse): string {
     ? `\n- Estructura secundaria: α-hélice ${ss.helix_percent.toFixed(1)}%, β-lámina ${ss.strand_percent.toFixed(1)}%, coil ${ss.coil_percent.toFixed(1)}%.`
     : "";
 
-  return `Eres un bioinformático experto explicando resultados de predicción de estructura proteica.
+  return `Eres un experto en biología molecular y bioinformática estructural redactando un informe técnico conciso.
 
-AUDIENCIA: Biólogo con conocimientos de biología molecular pero sin experiencia en bioinformática computacional.
-TONO: Colega que explica de forma accesible y honesta, sin condescendencia.
+AUDIENCIA: Biólogo con formación en biología molecular sin experiencia en bioinformática computacional.
+TONO: Formal, riguroso y preciso. Científico pero comprensible. Sin lenguaje coloquial ni apelativos informales.
 IDIOMA: Español.
 FORMATO: Exactamente dos párrafos separados por una línea en blanco. Sin títulos, sin viñetas, sin markdown.
-- Párrafo 1: Calidad global de la predicción (pLDDT, PAE) y propiedades biológicas más relevantes (solubilidad, estabilidad, alertas si las hay).
-- Párrafo 2: Para qué sirve este resultado y qué limitaciones tiene.${unknownNote}
+- Párrafo 1: Identidad y función biológica — qué es la proteína, cuál es su papel fisiológico y por qué es relevante. Si está identificada, incluir contexto biológico real. Mencionar la calidad de la predicción estructural (pLDDT) de forma concisa.
+- Párrafo 2: Propiedades biológicas clave (solubilidad, estabilidad, toxicidad si aplica) y limitaciones concretas del modelo de predicción. Qué puede y qué no puede inferirse de estos datos.${unknownNote}
 
 DATOS DE LA PREDICCIÓN:
 
@@ -116,14 +116,14 @@ export function buildExplanationPromptFromUnified(protein: UnifiedProtein): stri
       ].join("\n")
     : "- Propiedades biológicas: no disponibles.";
 
-  return `Eres un bioinformático experto explicando resultados de predicción de estructura proteica.
+  return `Eres un experto en biología molecular y bioinformática estructural redactando un informe técnico conciso.
 
-AUDIENCIA: Biólogo con conocimientos de biología molecular pero sin experiencia en bioinformática computacional.
-TONO: Colega que explica de forma accesible y honesta, sin condescendencia.
+AUDIENCIA: Biólogo con formación en biología molecular sin experiencia en bioinformática computacional.
+TONO: Formal, riguroso y preciso. Científico pero comprensible. Sin lenguaje coloquial ni apelativos informales.
 IDIOMA: Español.
 FORMATO: Exactamente dos párrafos separados por una línea en blanco. Sin títulos, sin viñetas, sin markdown.
-- Párrafo 1: Calidad global de la predicción y propiedades biológicas más relevantes (solubilidad, estabilidad, alertas si las hay).
-- Párrafo 2: Para qué sirve este resultado y qué limitaciones tiene.${unknownNote}
+- Párrafo 1: Identidad y función biológica — qué es la proteína, cuál es su papel fisiológico y por qué es relevante. Si está identificada, incluir contexto biológico real. Mencionar la calidad de la predicción estructural (pLDDT) de forma concisa.
+- Párrafo 2: Propiedades biológicas clave (solubilidad, estabilidad, toxicidad si aplica) y limitaciones concretas del modelo de predicción. Qué puede y qué no puede inferirse de estos datos.${unknownNote}
 
 DATOS:
 
@@ -137,34 +137,51 @@ ${bioLines}`;
 }
 
 export function buildChatPrompt(
-  protein: UnifiedProtein,
+  protein: UnifiedProtein | null,
   history: { role: "user" | "ai"; content: string }[],
   userMessage: string,
 ): string {
-  const proteinDesc = protein.name && protein.name !== "Unknown"
-    ? `${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}`
-    : "proteína desconocida";
+  const baseContext = `Eres un experto en biología molecular y bioinformática integrado en un portal de predicción de estructuras proteicas.
+Responde en español, de forma formal, rigurosa y clara. Sin lenguaje coloquial.
+Puedes mantener conversación general aunque no haya ninguna proteína seleccionada.
 
-  const bioSummary = protein.biological
-    ? `Solubilidad: ${protein.biological.solubilityLabel}. Estabilidad: ${protein.biological.instabilityLabel}. Toxicidad: ${protein.biological.toxicityLabel}. Peso molecular: ${(protein.biological.molecularWeight / 1000).toFixed(1)} kDa.`
-    : "Propiedades biológicas no disponibles.";
+CAPACIDADES REALES DE LA APP:
+- Cuando el usuario pide cargar, enviar, visualizar o buscar una proteína por nombre, el sistema la busca automáticamente en el catálogo interno o en UniProt, obtiene la FASTA y la carga en el portal sin que el usuario pegue nada.
+- El usuario también puede pegar una secuencia FASTA directamente (empieza por ">") y el sistema la carga igualmente.
+- NUNCA indiques que no puedes interactuar con APIs ni cargar proteínas: la app lo hace automáticamente cuando el usuario lo solicita.
 
-  const plddtSummary = protein.plddtMean != null
-    ? `Confianza estructural (pLDDT medio): ${protein.plddtMean.toFixed(1)}.`
-    : "";
+No inventes resultados experimentales, anotaciones de base de datos ni predicciones estructurales que no se te hayan proporcionado.`;
 
-  const context = `Eres un bioinformático experto respondiendo preguntas sobre una proteína específica.
-Hablas con un biólogo. Responde en español, de forma concisa y accesible.
+  const proteinContext = protein
+    ? (() => {
+        const proteinDesc = protein.name && protein.name !== "Unknown"
+          ? `${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}`
+          : "proteína desconocida";
+
+        const bioSummary = protein.biological
+          ? `Solubilidad: ${protein.biological.solubilityLabel}. Estabilidad: ${protein.biological.instabilityLabel}. Toxicidad: ${protein.biological.toxicityLabel}. Peso molecular: ${(protein.biological.molecularWeight / 1000).toFixed(1)} kDa.`
+          : "Propiedades biológicas no disponibles.";
+
+        const plddtSummary = protein.plddtMean != null
+          ? `Confianza estructural (pLDDT medio): ${protein.plddtMean.toFixed(1)}.`
+          : "Confianza estructural no disponible.";
+
+        return `Hay una proteína seleccionada en la app. Usa este contexto cuando sea relevante, pero no fuerces la conversación a girar alrededor de ella si el usuario pregunta otra cosa.
+Si el usuario menciona "la proteína seleccionada", "esta proteína" o algo equivalente, se refiere a la siguiente:
 
 Proteína actual: ${proteinDesc}
 ${plddtSummary}
 ${bioSummary}`;
+      })()
+    : "No hay ninguna proteína seleccionada ahora mismo. Responde como asistente general.";
 
   const historyText = history
     .map((m) => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`)
     .join("\n");
 
-  return `${context}
+  return `${baseContext}
+
+${proteinContext}
 
 ${historyText ? `Conversación:\n${historyText}\n` : ""}Usuario: ${userMessage}
 Asistente:`;

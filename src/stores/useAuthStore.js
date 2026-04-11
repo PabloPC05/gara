@@ -4,7 +4,9 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
@@ -34,6 +36,16 @@ const useAuthStore = create((set) => ({
     set({ loading: true, error: null });
     try {
       await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  signInWithGoogle: async () => {
+    set({ loading: true, error: null });
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
     } catch (error) {
       set({ error: error.message, loading: false });
     }

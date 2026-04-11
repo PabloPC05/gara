@@ -5,7 +5,7 @@ export function SidebarBrand() {
   return (
     <SidebarHeader className="border-b border-slate-100 px-5 py-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200/60">
+        <div className="flex h-9 w-9 items-center justify-center rounded-none bg-blue-600 text-white shadow-lg shadow-blue-200/60">
           <Activity className="h-5 w-5" />
         </div>
         <div className="flex flex-col">

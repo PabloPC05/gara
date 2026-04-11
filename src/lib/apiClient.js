@@ -88,7 +88,7 @@ function normalizeCatalogDetail(raw) {
 /**
  * Busca proteínas en el catálogo público de la API.
  *
- * @param {string} query
+ * @param {{ search?: string, category?: string, minLength?: string|number, maxLength?: string|number }} filters
  * @returns {Promise<Array<{
  *   proteinId: string,
  *   proteinName: string,
@@ -100,11 +100,15 @@ function normalizeCatalogDetail(raw) {
  *   description: string
  * }>>}
  */
-export async function searchCatalogProteins(query) {
-  const trimmed = query?.trim()
-  if (!trimmed) return []
+export async function searchCatalogProteins({ search = '', category = '', minLength = '', maxLength = '' } = {}) {
+  const params = new URLSearchParams()
+  if (search.trim())    params.set('search',     search.trim())
+  if (category.trim())  params.set('category',   category.trim())
+  if (minLength !== '') params.set('min_length', String(minLength))
+  if (maxLength !== '') params.set('max_length', String(maxLength))
 
-  const params = new URLSearchParams({ search: trimmed })
+  if (!params.toString()) return []
+
   const raw = await request(`/proteins/?${params.toString()}`)
 
   if (!Array.isArray(raw)) {

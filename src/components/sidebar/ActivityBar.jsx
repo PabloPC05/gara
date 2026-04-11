@@ -1,12 +1,13 @@
 import React from 'react';
-import { SquarePlus, FileCode, Search, Bot, Settings } from 'lucide-react';
+import { SquarePlus, FileCode, Search, Settings } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
+import { GeminiIcon } from '../ui/GeminiIcon';
 
 const NAV_TABS = [
   { id: 'plus',   icon: SquarePlus, title: 'Espacio 3D' },
   { id: 'files',  icon: FileCode,   title: 'Scripts & Jobs' },
   { id: 'search', icon: Search,     title: 'Explorar Catálogo' },
-  { id: 'ai',     icon: Bot,        title: 'AI Assistant' },
+  { id: 'ai',     icon: GeminiIcon, title: 'AI Assistant' },
 ];
 
 export function ActivityBar() {

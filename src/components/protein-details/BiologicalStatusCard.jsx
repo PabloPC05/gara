@@ -5,14 +5,14 @@ function StatusRow({ icon: Icon, label, value, score, tone }) {
   const isOk = tone === 'ok'
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 backdrop-blur-sm ${
+      className={`flex items-center gap-3 rounded-none border px-4 py-3 backdrop-blur-sm ${
         isOk
           ? 'border-emerald-200/60 bg-emerald-50/50'
           : 'border-rose-200/60 bg-rose-50/50'
       }`}
     >
       <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-none ${
           isOk ? 'bg-emerald-100' : 'bg-rose-100'
         }`}
       >
@@ -49,8 +49,8 @@ function AlertsRow({ label, alerts }) {
 
   if (!hasAlerts) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 backdrop-blur-sm">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+      <div className="flex items-center gap-3 rounded-none border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 backdrop-blur-sm">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-emerald-100">
           <CircleCheck className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />
         </div>
         <div className="flex flex-1 items-center justify-between gap-3">
@@ -64,9 +64,9 @@ function AlertsRow({ label, alerts }) {
   }
 
   return (
-    <div className="rounded-xl border border-rose-200/60 bg-rose-50/50 px-4 py-3 backdrop-blur-sm">
+    <div className="rounded-none border border-rose-200/60 bg-rose-50/50 px-4 py-3 backdrop-blur-sm">
       <div className="flex items-center gap-3 mb-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-rose-100">
           <TriangleAlert className="h-4 w-4 text-rose-600" strokeWidth={2.5} />
         </div>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">

@@ -1,439 +1,226 @@
+import { useEffect, useRef, useState } from 'react';
+import { useMolstarViewer } from '../../hooks/useMolstarViewer';
+import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme';
+import { useProteinStore } from '../../stores/useProteinStore';
+import { useUIStore } from '../../stores/useUIStore';
+import { useMolstarMouseControls } from '../../hooks/useMolstarMouseControls';
+import ViewerCanvas from './ViewerCanvas';
+
+// --- Importaciones Mol* ---
+import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure.js';
+import { Color } from 'molstar/lib/mol-util/color/index.js';
+
+// --- Servicios y Configuración ---
+import {
+  syncStructures,
+  updateAllRepresentations,
+  selectResidueBySeqId,
+  clearResidueSelection,
+  LIGHTING_PRESETS
+} from '../../lib/molstar/structurePipeline';
+
 /**
- * MolecularViewer — integración Mol* como visor AlphaFold.
+ * MolecularViewer — Orquestador principal del visor 3D.
  *
- * Arquitectura:
- *  - useMolstarViewer  → inicializa PluginContext en containerRef
- *  - plddtColorTheme   → esquema de color AlphaFold exacto (#0053D6 / #65CBF3 / #FFE91E / #FF7D45)
- *  - syncStructures    → reconcilia Map<id, entry> ↔ proteinsById del store
- *  - hover subscription → tooltip de residuo + pLDDT
- *  - mousedown/move    → picking propio + transformación por estructura (Ctrl+drag)
+ * Responsabilidades:
+ *  1. Inicializar el plugin Mol* (via useMolstarViewer)
+ *  2. Sincronizar las proteínas del store con las estructuras cargadas en Mol*
+ *  3. Reaccionar a cambios de representación, iluminación, fondo y residuo enfocado
+ *  4. Gestionar el tooltip de hover sobre residuos
+ *
+ * Delega en:
+ *  - structurePipeline.js → carga/descarga de estructuras, transformaciones
+ *  - useMolstarMouseControls → eventos de ratón (picking, drag)
+ *  - ViewerCanvas → capa visual React (grid, tooltip, overlay)
  */
-
-import { useEffect, useRef, useState } from 'react'
-import { useMolstarViewer } from '../../hooks/useMolstarViewer'
-import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme'
-import { useProteinStore } from '../../stores/useProteinStore'
-import { useUIStore } from '../../stores/useUIStore'
-import ViewerCanvas from './ViewerCanvas'
-
-// ── Importaciones Mol* ────────────────────────────────────────────────────────
-import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure.js'
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms.js'
-import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js'
-import { Color } from 'molstar/lib/mol-util/color/index.js'
-
-// ─── Constantes ───────────────────────────────────────────────────────────────
-const DRAG_SCALE = 0.004            // px → unidades mundo (se multiplica por camera.radius)
-
-// ─── Presets de iluminación ───────────────────────────────────────────────────
-const LIGHTING_PRESETS = {
-  ao: {
-    postprocessing: {
-      occlusion: {
-        name: 'on',
-        params: {
-          samples: 32,
-          radius: 5,
-          bias: 0.8,
-          blurKernelSize: 15,
-          blurDepthBias: 0.5,
-          resolutionScale: 1,
-          color: Color(0x000000),
-          transparentThreshold: 0.4,
-          multiScale: { name: 'off', params: {} },
-        },
-      },
-      shadow: { name: 'off', params: {} },
-    },
-    renderer: { ambientIntensity: 0.9, lightIntensity: 0.4, metalness: 0, roughness: 1.0 },
-  },
-  flat: {
-    postprocessing: {
-      occlusion: { name: 'off', params: {} },
-      shadow: { name: 'off', params: {} },
-    },
-    renderer: { ambientIntensity: 1.0, lightIntensity: 0.0, metalness: 0, roughness: 1.0 },
-  },
-  studio: {
-    postprocessing: {
-      occlusion: { name: 'off', params: {} },
-      shadow: { name: 'off', params: {} },
-    },
-    renderer: { ambientIntensity: 0.6, lightIntensity: 0.8, metalness: 0, roughness: 0.8 },
-  },
-}
-
-// ─── Helpers de transformación de matriz ──────────────────────────────────────
-
-function rotMatY(a) {
-  const c = Math.cos(a), s = Math.sin(a)
-  return Mat4.ofRows([[ c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]])
-}
-
-function rotMatX(a) {
-  const c = Math.cos(a), s = Math.sin(a)
-  return Mat4.ofRows([[1,0,0,0],[0,c,-s,0],[0,s,c,0],[0,0,0,1]])
-}
-
-/** Yaw+pitch alrededor del centroide, acumulando sobre `mat`. */
-function applyRotation(mat, centroid, yaw, pitch) {
-  const [tx, ty, tz] = [centroid[0], centroid[1], centroid[2]]
-  const T  = Mat4.ofRows([[1,0,0, tx],[0,1,0, ty],[0,0,1, tz],[0,0,0,1]])
-  const Ti = Mat4.ofRows([[1,0,0,-tx],[0,1,0,-ty],[0,0,1,-tz],[0,0,0,1]])
-  const R  = Mat4.mul(Mat4(), rotMatX(pitch), rotMatY(yaw))
-  const delta = Mat4.mul(Mat4(), T, Mat4.mul(Mat4(), R, Ti))
-  Mat4.mul(mat, delta, mat)
-}
-
-/** Traslación alineada con los vectores cámara-right/up, acumulando sobre `mat`. */
-function applyTranslation(mat, right, up, dx, dy, scale) {
-  const wx = (right[0] * dx - up[0] * dy) * scale
-  const wy = (right[1] * dx - up[1] * dy) * scale
-  const wz = (right[2] * dx - up[2] * dy) * scale
-  const T  = Mat4.ofRows([[1,0,0,wx],[0,1,0,wy],[0,0,1,wz],[0,0,0,1]])
-  Mat4.mul(mat, T, mat)
-}
-
-// ─── Pipeline de carga de estructuras ────────────────────────────────────────
-
-function looksLikeCif(text) {
-  return (
-    /^\s*data_/m.test(text)
-    || /^\s*loop_\s*$/m.test(text)
-    || /^\s*_(entry|audit_conform|atom_site|struct)\./m.test(text)
-  )
-}
-
-function resolveStructurePayload(protein) {
-  const candidates = [
-    { text: protein?.structureData, hintedFormat: protein?.structureFormat },
-    { text: protein?.cifData, hintedFormat: 'cif' },
-    { text: protein?.pdbData, hintedFormat: protein?.structureFormat },
-  ]
-
-  const candidate = candidates.find(({ text }) => typeof text === 'string' && text.trim().length > 0)
-  if (!candidate) return null
-
-  const isCif = candidate.hintedFormat === 'cif' || looksLikeCif(candidate.text)
-  return { text: candidate.text, format: isCif ? 'mmcif' : 'pdb' }
-}
-
-/**
- * Carga una cadena PDB/mmCIF en el state tree de Mol*:
- *   rawData → trajectory → model → structure → TransformStructureConformation → repr
- */
-async function loadStructureEntry(plugin, id, protein, reprType) {
-  const payload = resolveStructurePayload(protein)
-  if (!payload) throw new Error(`No structural payload available for protein ${id}`)
-  const { text, format } = payload
-
-  const dataRef = await plugin.builders.data.rawData({ data: text, label: id })
-  const traj    = await plugin.builders.structure.parseTrajectory(dataRef, format)
-  const model   = await plugin.builders.structure.createModel(traj)
-  const baseRef = await plugin.builders.structure.createStructure(model)
-
-  // Nodo de transformación (identidad inicial; se actualiza con drag)
-  const transformedRef = await plugin
-    .build()
-    .to(baseRef)
-    .apply(StateTransforms.Model.TransformStructureConformation, {
-      transform: { name: 'matrix', params: { data: Array.from(Mat4.identity()), transpose: false } },
-    })
-    .commit()
-
-  // Representación cartoon + tema de color pLDDT AlphaFold
-  const reprRef = await plugin.builders.structure.representation.addRepresentation(
-    transformedRef,
-    { type: reprType ?? 'cartoon', typeParams: { alpha: 1, quality: 'high' }, color: 'alphafold-plddt' }
-  )
-
-  // Centro geométrico para rotaciones
-  const structObj = plugin.state.data.cells.get(transformedRef.ref)?.obj?.data
-  const center    = structObj?.boundary?.sphere?.center
-  const centroid  = center ? Vec3.clone(center) : Vec3.create(0, 0, 0)
-
-  return { id, dataRef, baseRef, transformedRef, reprRef, mat: Mat4.identity(), centroid }
-}
-
-
-/**
- * Reconcilia Map<id,entry> con la selección activa:
- * - Elimina estructuras que ya no están seleccionadas o ya no están en el catálogo.
- * - Carga las estructuras de las proteínas seleccionadas que aún no están en escena.
- */
-async function syncStructures(plugin, entriesMap, proteinsById, selectedIds, reprType) {
-  let dirty = false
-
-  // Eliminar lo que ya no está seleccionado o fue borrado del catálogo
-  for (const [id, entry] of entriesMap) {
-    if (!proteinsById[id] || !selectedIds.includes(id)) {
-      try { await plugin.build().delete(entry.dataRef.ref).commit() } catch (_) {}
-      entriesMap.delete(id)
-      dirty = true
-    }
-  }
-
-  // Añadir las proteínas seleccionadas que aún no están en escena
-  for (const id of selectedIds) {
-    if (entriesMap.has(id)) continue
-    const protein = proteinsById[id]
-    if (!protein?.pdbData && !protein?.cifData && !protein?.structureData) continue
-    try {
-      const entry = await loadStructureEntry(plugin, id, protein, reprType)
-      entriesMap.set(id, entry)
-      dirty = true
-    } catch (error) {
-      console.error(`[Mol*] Could not load structure for ${id}`, error)
-    }
-  }
-
-  return dirty
-}
-
-/** Escribe el mat4 acumulado en el nodo TransformStructureConformation del state tree. */
-async function commitTransform(plugin, entry) {
-  await plugin
-    .build()
-    .to(entry.transformedRef.ref)
-    .update(StateTransforms.Model.TransformStructureConformation, () => ({
-      transform: { name: 'matrix', params: { data: Array.from(entry.mat), transpose: false } },
-    }))
-    .commit()
-}
-
-/** Cambia el tipo de representación de todas las estructuras cargadas. */
-async function updateAllRepresentations(plugin, entriesMap, reprType) {
-  for (const [, entry] of entriesMap) {
-    await plugin
-      .build()
-      .to(entry.reprRef.ref)
-      .update(StateTransforms.Representation.StructureRepresentation3D, (old) => ({
-        ...old,
-        type: { name: reprType, params: old.type?.params ?? {} },
-      }))
-      .commit()
-  }
-}
-
-// ─── Componente principal ─────────────────────────────────────────────────────
-
 export default function MolecularViewer() {
-  const proteinsById          = useProteinStore((s) => s.proteinsById)
-  const selectedProteinIds    = useProteinStore((s) => s.selectedProteinIds)
-  const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds)
+  // ── Store: proteínas ───────────────────────────────────────────────────────
+  const proteinsById          = useProteinStore((s) => s.proteinsById);       // catálogo completo
+  const selectedProteinIds    = useProteinStore((s) => s.selectedProteinIds); // IDs actualmente visibles
+  const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
 
-  const viewerRepresentation = useUIStore((s) => s.viewerRepresentation)
-  const viewerLighting       = useUIStore((s) => s.viewerLighting)
-  const sceneBackground      = useUIStore((s) => s.viewerBackground)
+  // ── Store: UI ──────────────────────────────────────────────────────────────
+  const viewerRepresentation = useUIStore((s) => s.viewerRepresentation); // cartoon | ball-and-stick | …
+  const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
+  const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
+  const focusedResidue       = useUIStore((s) => s.focusedResidue);       // residuo seleccionado desde FastaBar
 
-  // Live refs para closures de event listeners
-  const selectedIdsRef  = useRef(selectedProteinIds)
-  const proteinsByIdRef = useRef(proteinsById)
-  const reprTypeRef     = useRef(viewerRepresentation)
-  useEffect(() => { selectedIdsRef.current  = selectedProteinIds }, [selectedProteinIds])
-  useEffect(() => { proteinsByIdRef.current = proteinsById }, [proteinsById])
-  useEffect(() => { reprTypeRef.current     = viewerRepresentation }, [viewerRepresentation])
+  // ── Live refs ──────────────────────────────────────────────────────────────
+  // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
+  // de React, para evitar stale closures en efectos de larga duración.
+  const selectedIdsRef  = useRef(selectedProteinIds);
+  const proteinsByIdRef = useRef(proteinsById);
+  const reprTypeRef     = useRef(viewerRepresentation);
+  const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
 
-  const entriesRef = useRef(new Map())  // Map<id, entry>
-  const dragRef    = useRef(null)
+  useEffect(() => { selectedIdsRef.current  = selectedProteinIds; }, [selectedProteinIds]);
+  useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
+  useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
 
-  const [tooltip, setTooltip] = useState(null)
+  // ── Tooltip de residuos (hover + selección) ───────────────────────────────
+  // - hoverTooltip: prioriza lo que está bajo el cursor en tiempo real.
+  // - selectedTooltip: mantiene visible la info del residuo seleccionado.
+  const [hoverTooltip, setHoverTooltip] = useState(null);
+  const [selectedTooltip, setSelectedTooltip] = useState(null);
+  const tooltip = hoverTooltip ?? selectedTooltip;
 
-  // ── Inicialización del plugin ─────────────────────────────────────────────
+  // ── 1. Inicialización del plugin ───────────────────────────────────────────
+  // useMolstarViewer crea el PluginContext, monta el canvas WebGL y llama a
+  // setup() una sola vez tras la inicialización.
   const { containerRef, pluginRef } = useMolstarViewer({
     setup: async (plugin) => {
-      // 1. Registrar el tema de color pLDDT AlphaFold en el registry
-      registerAlphafoldPlddtTheme(plugin)
+      // Registrar el tema de color pLDDT de AlphaFold (azul→cyan→amarillo→naranja)
+      registerAlphafoldPlddtTheme(plugin);
 
-      // 2. Configurar Ambient Occlusion + renderer mate (sin brillos especulares)
+      // Configurar iluminación inicial y desactivar niebla/clipping para que
+      // la proteína se renderice completa sin desvanecerse en los extremos.
+      // - cameraFog: off         → sin niebla al fondo
+      // - cameraClipping.far: false → sin corte por plano far
+      // - cameraClipping.radius: 0  → plano near al máximo del campo de visión
       plugin.canvas3d?.setProps({
         ...LIGHTING_PRESETS.ao,
         renderer: {
           ...LIGHTING_PRESETS.ao.renderer,
           backgroundColor: Color.fromHexStyle(sceneBackground),
         },
-      })
+      });
 
-      // 3. Cargar las proteínas seleccionadas al montar
+      // Cargar las proteínas que ya estuvieran seleccionadas al montar el componente
       const dirty = await syncStructures(
         plugin, entriesRef.current,
         proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
-      )
-      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset()
+      );
+      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
 
-      // 4. Suscripción hover → tooltip de residuo + pLDDT
-      const hoverSub = plugin.behaviors.interaction.hover.subscribe(({ current, page }) => {
+      // Suscripción al evento hover de Mol*:
+      // Cada vez que el cursor pasa sobre un átomo, extraemos el aminoácido,
+      // la posición en la cadena y el pLDDT para mostrar en el tooltip.
+      const hoverSub = plugin.behaviors.interaction.hover.subscribe(({ current }) => {
         if (!current?.loci || current.loci.kind !== 'element-loci') {
-          setTooltip(null)
-          return
+          setHoverTooltip(null);
+          return;
         }
         try {
-          const loc = StructureElement.Loci.getFirstLocation(current.loci)
-          if (!loc) { setTooltip(null); return }
+          const loc = StructureElement.Loci.getFirstLocation(current.loci);
+          if (!loc) { setHoverTooltip(null); return; }
 
-          const compId = StructureProperties.residue.auth_comp_id(loc)
-          const seqId  = StructureProperties.residue.auth_seq_id(loc)
-          const chainId = StructureProperties.chain.auth_asym_id(loc)
-          const bfact  = StructureProperties.atom.B_iso_or_equiv(loc)
-
-          setTooltip({
-            code: compId,
-            seqId: seqId,
-            chainId: chainId,
-            plddt: bfact.toFixed(1),
-          })
+          setHoverTooltip({
+            code:    StructureProperties.residue.auth_comp_id(loc),    // p.ej. "GLY"
+            seqId:   StructureProperties.residue.auth_seq_id(loc),     // nº en la cadena
+            chainId: StructureProperties.chain.auth_asym_id(loc),      // "A", "B", …
+            plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1), // confianza AlphaFold
+          });
         } catch (_) {
-          setTooltip(null)
+          setHoverTooltip(null);
         }
-      })
+      });
 
-      return () => hoverSub.unsubscribe()
+      // Devolvemos la limpieza de la suscripción para cuando se desmonte
+      return () => hoverSub.unsubscribe();
     },
     deps: [],
-  })
+  });
 
-  // ── Sync proteínas seleccionadas → escena Mol* ────────────────────────────
-  // Se dispara tanto al cambiar el catálogo como al cambiar la selección.
+  // ── 2. Controles de ratón ──────────────────────────────────────────────────
+  // Picking (clic sobre átomo → selecciona proteína) y drag (rota estructura).
+  useMolstarMouseControls({
+    containerRef,
+    pluginRef,
+    entriesRef,
+    selectedIdsRef,
+    setSelectedProteinIds,
+  });
+
+  // ── 3. Efectos reactivos ───────────────────────────────────────────────────
+
+  // Sincronización de estructuras:
+  // Cuando cambia el catálogo de proteínas o la selección, syncStructures elimina
+  // lo que ya no está y carga lo que falta. Si hubo cambios, resetea la cámara.
   useEffect(() => {
-    const plugin = pluginRef.current
-    if (!plugin) return
-    let cancelled = false
-    ;(async () => {
+    const plugin = pluginRef.current;
+    if (!plugin) return;
+    let cancelled = false;
+    (async () => {
       const dirty = await syncStructures(
         plugin, entriesRef.current,
         proteinsById, selectedProteinIds, reprTypeRef.current,
-      )
-      if (cancelled) return
-      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset()
-    })()
-    return () => { cancelled = true }
-  }, [proteinsById, selectedProteinIds, pluginRef])
+      );
+      if (cancelled) return;
+      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
+    })();
+    return () => { cancelled = true; };
+  }, [proteinsById, selectedProteinIds, pluginRef]);
 
-  // ── Fondo de escena ───────────────────────────────────────────────────────
+  // Color de fondo del canvas (hex → Color de Mol*)
   useEffect(() => {
     pluginRef.current?.canvas3d?.setProps({
       renderer: { backgroundColor: Color.fromHexStyle(sceneBackground) },
-    })
-  }, [sceneBackground, pluginRef])
+    });
+  }, [sceneBackground, pluginRef]);
 
-  // ── Cambio de representación ──────────────────────────────────────────────
+  // Tipo de representación visual (cartoon, ball-and-stick, surface…)
+  // Actualiza todas las estructuras cargadas simultáneamente.
   useEffect(() => {
-    const plugin = pluginRef.current
-    if (!plugin || entriesRef.current.size === 0) return
-    updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error)
-  }, [viewerRepresentation, pluginRef])
+    const plugin = pluginRef.current;
+    if (!plugin || entriesRef.current.size === 0) return;
+    updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error);
+  }, [viewerRepresentation, pluginRef]);
 
-  // ── Cambio de iluminación ─────────────────────────────────────────────────
+  // Residuo enfocado desde la FastaBar:
+  // Selecciona el residuo en Mol* y mueve la cámara hacia él con animación.
   useEffect(() => {
-    const plugin = pluginRef.current
-    if (!plugin) return
-    plugin.canvas3d?.setProps(LIGHTING_PRESETS[viewerLighting] ?? LIGHTING_PRESETS.ao)
-  }, [viewerLighting, pluginRef])
+    const plugin = pluginRef.current;
+    if (!plugin || entriesRef.current.size === 0) {
+      setSelectedTooltip(null);
+      return;
+    }
 
-  // ── Mouse picking + drag (Ctrl=rotate, plain=translate) ──────────────────
+    if (!focusedResidue) {
+      clearResidueSelection(plugin);
+      setSelectedTooltip(null);
+      return;
+    }
+
+    const activeId = selectedProteinIds[0];
+    if (!activeId) {
+      setSelectedTooltip(null);
+      return;
+    }
+    const entry = entriesRef.current.get(activeId);
+    if (!entry) {
+      setSelectedTooltip(null);
+      return;
+    }
+
+    const loci = selectResidueBySeqId(plugin, entry, focusedResidue.seqId);
+    const loc = loci ? StructureElement.Loci.getFirstLocation(loci) : null;
+    if (!loc) {
+      setSelectedTooltip(null);
+      return;
+    }
+
+    const plddt = StructureProperties.atom.B_iso_or_equiv(loc);
+    setSelectedTooltip({
+      code: StructureProperties.residue.auth_comp_id(loc),
+      seqId: StructureProperties.residue.auth_seq_id(loc),
+      chainId: StructureProperties.chain.auth_asym_id(loc),
+      plddt: Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
+    });
+  }, [focusedResidue, pluginRef, selectedProteinIds]);
+
+  // Esquema de iluminación (ao / flat / studio):
+  // Aplica el preset completo, incluyendo oclusión ambiental, sombras,
+  // intensidades de luz, niebla desactivada y clipping sin corte.
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    const plugin = pluginRef.current;
+    if (!plugin) return;
+    plugin.canvas3d?.setProps(LIGHTING_PRESETS[viewerLighting] ?? LIGHTING_PRESETS.ao);
+  }, [viewerLighting, pluginRef]);
 
-    /** Picking por píxel: devuelve el protein id o null. */
-    const pickAt = (clientX, clientY) => {
-      const plugin = pluginRef.current
-      if (!plugin?.canvas3d) return null
-      const rect = container.getBoundingClientRect()
-      const pick = plugin.canvas3d.identify({ x: clientX - rect.left, y: clientY - rect.top })
-      if (!pick) return null
-      const loci = plugin.canvas3d.getLoci(pick.id)
-      if (!loci || loci.kind !== 'element-loci') return null
-      const pickedModel = loci.structure?.model
-      for (const [id, entry] of entriesRef.current) {
-        const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data
-        if (s && (s === loci.structure || s.model === pickedModel)) return id
-      }
-      return null
-    }
-
-    /** Vectores cámara en espacio mundo para traslación alineada. */
-    const getCameraAxes = () => {
-      const cam = pluginRef.current?.canvas3d?.camera
-      if (!cam) return null
-      const inv = Mat4.invert(Mat4(), cam.view)
-      if (!inv) return null
-      const right = Vec3.normalize(Vec3(), Vec3.create(inv[0], inv[1], inv[2]))
-      const up    = Vec3.normalize(Vec3(), Vec3.create(inv[4], inv[5], inv[6]))
-      return { right, up }
-    }
-
-    const handleMouseDown = (event) => {
-      if (event.button !== 0) return
-      const hitId = pickAt(event.clientX, event.clientY)
-      // Click en fondo vacío: no hace nada (des-selección solo desde el sidebar)
-      if (!hitId) return
-
-      event.stopImmediatePropagation()
-      event.preventDefault()
-
-      if (event.ctrlKey && selectedIdsRef.current.includes(hitId)) {
-        const entry = entriesRef.current.get(hitId)
-        dragRef.current = {
-          mode: 'rotate', id: hitId,
-          centroid: entry?.centroid ?? Vec3.create(0,0,0),
-          lastX: event.clientX, lastY: event.clientY,
-        }
-        return
-      }
-
-      // Seleccionar siempre (la des-selección es exclusiva del sidebar)
-      setSelectedProteinIds([hitId])
-
-      const axes = getCameraAxes()
-      if (axes) {
-        dragRef.current = { mode: 'translate', id: hitId, axes, lastX: event.clientX, lastY: event.clientY }
-      }
-    }
-
-    const handleMouseMove = async (event) => {
-      const drag = dragRef.current
-      if (!drag) return
-      const plugin = pluginRef.current
-      if (!plugin) return
-      event.stopImmediatePropagation()
-      event.preventDefault()
-
-      const dx = event.clientX - drag.lastX
-      const dy = event.clientY - drag.lastY
-      if (dx === 0 && dy === 0) return
-
-      const entry = entriesRef.current.get(drag.id)
-      if (!entry) return
-
-      if (drag.mode === 'rotate') {
-        applyRotation(entry.mat, drag.centroid, dx * 0.01, dy * 0.01)
-      } else {
-        const axes = getCameraAxes() ?? drag.axes
-        const scale = DRAG_SCALE * (plugin.canvas3d?.camera?.state?.radius ?? 50)
-        applyTranslation(entry.mat, axes.right, axes.up, dx, dy, scale)
-      }
-
-      await commitTransform(plugin, entry)
-      drag.lastX = event.clientX
-      drag.lastY = event.clientY
-    }
-
-    const handleMouseUp = () => { dragRef.current = null }
-
-    container.addEventListener('mousedown', handleMouseDown, true)
-    window.addEventListener('mousemove', handleMouseMove, true)
-    window.addEventListener('mouseup', handleMouseUp, true)
-    return () => {
-      container.removeEventListener('mousedown', handleMouseDown, true)
-      window.removeEventListener('mousemove', handleMouseMove, true)
-      window.removeEventListener('mouseup', handleMouseUp, true)
-    }
-  }, [containerRef, pluginRef, setSelectedProteinIds])
-
-  const drawerOpen       = selectedProteinIds.length > 0
-  const isComparison     = selectedProteinIds.length >= 2
-  const visibleCount     = isComparison ? Math.min(selectedProteinIds.length, 4) : 1
+  // ── 4. Props para ViewerCanvas ─────────────────────────────────────────────
+  const drawerOpen       = selectedProteinIds.length > 0;
+  const isComparison     = selectedProteinIds.length >= 2;
+  const visibleCount     = isComparison ? Math.min(selectedProteinIds.length, 4) : 1;
 
   return (
     <ViewerCanvas
@@ -445,5 +232,5 @@ export default function MolecularViewer() {
     >
       <div />
     </ViewerCanvas>
-  )
+  );
 }

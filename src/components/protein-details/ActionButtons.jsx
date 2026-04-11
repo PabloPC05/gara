@@ -31,7 +31,7 @@ export function ActionButtons({ protein }) {
           type="button"
           disabled={!hasPdb}
           onClick={handleDownloadPdb}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-200/60 transition-all hover:bg-blue-700 hover:shadow-xl disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-2 rounded-none bg-blue-600 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-200/60 transition-all hover:bg-blue-700 hover:shadow-xl disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
         >
           <Download className="h-3.5 w-3.5" strokeWidth={2.5} />
           Descargar PDB
@@ -40,7 +40,7 @@ export function ActionButtons({ protein }) {
           type="button"
           disabled={!hasLogs}
           onClick={() => setShowLogs((v) => !v)}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:bg-slate-50 hover:border-slate-300 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-2 rounded-none border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 transition-all hover:bg-slate-50 hover:border-slate-300 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
         >
           <Terminal className="h-3.5 w-3.5" strokeWidth={2.5} />
           {showLogs ? 'Ocultar Logs' : 'Ver Logs'}
@@ -48,7 +48,7 @@ export function ActionButtons({ protein }) {
       </div>
 
       {showLogs && hasLogs && (
-        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-900 p-3 max-h-48 overflow-y-auto">
+        <div className="mt-3 rounded-none border border-slate-200 bg-slate-900 p-3 max-h-48 overflow-y-auto">
           <div className="flex items-center gap-1.5 mb-2">
             <FileText className="h-3 w-3 text-slate-500" strokeWidth={2} />
             <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
