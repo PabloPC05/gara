@@ -1,17 +1,15 @@
-node_modules
-dist
-.env
-.DS_Store
-<<<<<<< HEAD
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+**/dist/
+**/node_modules/
 
-# Easy
-.env
-=======
-*.log
-.agents
->>>>>>> main
+**/*.log
+**/*.njsproj
+**/*.ntvs*
+**/*.sln
+**/*.suo
+**/*.sw?
+**/.DS_Store
+**/.agents
+**/.env
+**/.env
+**/bun.lock
+**/package-lock.json

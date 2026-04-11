@@ -82,7 +82,6 @@
     50% { transform: translateY(-10px); }
   }
 }
-<<<<<<< HEAD
 
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
@@ -193,5 +192,3 @@
   background: rgba(6, 182, 212, 0.1);
   box-shadow: var(--shadow-glow-sm);
 }
-=======
->>>>>>> main
