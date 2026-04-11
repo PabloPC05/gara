@@ -41,8 +41,9 @@ const RESIDUE_SELECT_COLOR = Color(0x22c55e);
 const INTERACTION_RENDERER = {
   highlightColor: RESIDUE_HOVER_COLOR,
   selectColor: RESIDUE_SELECT_COLOR,
-  highlightStrength: 0.55,
-  selectStrength: 0.8,
+  highlightStrength: 0.45,
+  selectStrength: 1.0,
+  markerPriority: 2,
 };
 
 const INTERACTION_MARKING = {
@@ -237,10 +238,10 @@ export async function commitTransform(plugin, entry) {
 }
 
 /**
- * Selecciona un residuo por su auth_seq_id y enfoca la cámara sobre él.
+ * Selecciona un residuo por label_seq_id y enfoca la cámara sobre él.
  * @param {import('molstar/lib/mol-plugin/context').PluginContext} plugin
  * @param {object} entry Entrada del mapa de estructuras (con transformedRef).
- * @param {number} seqId Número de secuencia del residuo (auth_seq_id).
+ * @param {number} seqId Número de secuencia del residuo.
  */
 export function selectResidueBySeqId(plugin, entry, seqId) {
   const structure = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
@@ -250,7 +251,7 @@ export function selectResidueBySeqId(plugin, entry, seqId) {
     const sel = Script.getStructureSelection(
       (Q) => Q.struct.generator.atomGroups({
         'residue-test': Q.core.rel.eq([
-          Q.struct.atomProperty.macromolecular.auth_seq_id(),
+          Q.struct.atomProperty.macromolecular.label_seq_id(),
           seqId,
         ]),
         'group-by': Q.struct.atomProperty.macromolecular.residueKey(),

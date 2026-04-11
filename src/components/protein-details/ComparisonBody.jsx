@@ -32,7 +32,7 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-slate-100 px-7 pt-8 pb-5">
         <div className="mb-3 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-none bg-blue-600 text-white shadow-lg shadow-blue-200/60">
@@ -68,11 +68,11 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
         )}
       </header>
 
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <ScrollArea
           className="h-full w-full"
         >
-          <div className="flex h-full w-max divide-x divide-slate-100" style={gridStyle}>
+          <div className="flex w-max divide-x divide-slate-100" style={gridStyle}>
             {visible.map((protein) => (
               <div key={protein.id} className="min-w-[200px] flex-1">
                 <ComparisonColumn protein={protein} />

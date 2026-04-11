@@ -23,7 +23,7 @@ function getPreferredSeqId(loc) {
   const labelSeqId = StructureProperties.residue.label_seq_id(loc);
   if (Number.isFinite(labelSeqId) && labelSeqId > 0) return labelSeqId;
   const authSeqId = StructureProperties.residue.auth_seq_id(loc);
-  return Number.isFinite(authSeqId) ? authSeqId : null;
+  return Number.isFinite(authSeqId) && authSeqId > 0 ? authSeqId : null;
 }
 
 /**
@@ -194,7 +194,7 @@ export default function MolecularViewer() {
 
     const selectedProteinId = selectedProteinIds[0];
     const activeId =
-      focusedResidue?.proteinId && focusedResidue.proteinId === selectedProteinId
+      focusedResidue?.proteinId && entriesRef.current.has(focusedResidue.proteinId)
         ? focusedResidue.proteinId
         : selectedProteinId;
     if (!activeId) {

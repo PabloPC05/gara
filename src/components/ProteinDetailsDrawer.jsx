@@ -126,7 +126,7 @@ export function ProteinDetailsDrawer() {
         data-state={detailsPanelOpen ? 'open' : 'closed'}
         style={widthStyle}
         className={[
-          'absolute right-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden',
+          'absolute right-0 top-0 bottom-0 z-50 flex min-h-0 flex-col overflow-hidden',
           'border-l border-slate-200 bg-white shadow-xl',
           'outline-none',
           !customWidth && 'transition-all duration-300 ease-in-out',

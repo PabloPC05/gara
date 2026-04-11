@@ -6,7 +6,7 @@ import { create } from 'zustand'
  * tanto el modo mock como el modo real lo alimentan con `UnifiedProtein`.
  *
  * - `proteinsById`: catálogo disponible (por id estable).
- * - `selectedProteinIds`: IDs actualmente seleccionados por el usuario.
+ * - `selectedProteinIds`: IDs actualmente seleccionados (soporta multi-selección).
  * - `activeProteinId`: último ID seleccionado (compat con consumidores single).
  * - `loadingById` / `errorById`: estado del ciclo de carga contra la API real.
  */
@@ -28,25 +28,28 @@ export const useProteinStore = create((set, get) => ({
     }))
   },
 
+  /** Reemplaza todo el catálogo. Preserva los IDs seleccionados que sigan
+   *  existiendo en el nuevo catálogo, manteniendo el orden original. */
   replaceCatalog: (proteins) => {
     const next = {}
     for (const p of proteins) {
       if (p?.id) next[p.id] = p
     }
     set((state) => {
-      const nextSelection = state.activeProteinId && next[state.activeProteinId]
-        ? [state.activeProteinId]
-        : []
+      const nextSelection = state.selectedProteinIds.filter((id) => id in next)
       return {
         proteinsById: next,
         selectedProteinIds: nextSelection,
-        activeProteinId: nextSelection[0] ?? null,
+        activeProteinId: nextSelection.length > 0
+          ? nextSelection[nextSelection.length - 1]
+          : null,
         loadingById: {},
         errorById: {},
       }
     })
   },
 
+  /** Elimina una proteína del catálogo y limpia su ID de la selección. */
   removeProtein: (id) =>
     set((state) => {
       const nextCatalog = omitKey(state.proteinsById, id)
@@ -55,7 +58,9 @@ export const useProteinStore = create((set, get) => ({
         proteinsById: nextCatalog,
         selectedProteinIds: nextSelection,
         activeProteinId:
-          nextSelection.length > 0 ? nextSelection[nextSelection.length - 1] : null,
+          nextSelection.length > 0
+            ? nextSelection[nextSelection.length - 1]
+            : null,
         loadingById: omitKey(state.loadingById, id),
         errorById: omitKey(state.errorById, id),
       }
@@ -75,26 +80,48 @@ export const useProteinStore = create((set, get) => ({
       errorById: { ...state.errorById, [id]: message },
     })),
 
-  // ── Selección ───────────────────────────────────────────────────────
+  // ── Selección (multi-selección) ─────────────────────────────────────
 
+  /** Reemplaza la selección completa con un nuevo array de IDs.
+   *  Filtra IDs inválidos y deduplica. */
   setSelectedProteinIds: (ids) => {
-    const newIds = normalizeSelection(ids)
-    set({ selectedProteinIds: newIds, activeProteinId: newIds[0] ?? null })
+    const newIds = sanitizeIds(ids)
+    set({
+      selectedProteinIds: newIds,
+      activeProteinId: newIds.length > 0 ? newIds[newIds.length - 1] : null,
+    })
   },
 
+  /** Toggle de un ID dentro de la selección:
+   *  - Si ya está → lo quita del array.
+   *  - Si no está → lo añade al final y se convierte en el activo. */
   toggleProteinSelection: (id) => {
-    const { activeProteinId } = get()
-    const newIds = activeProteinId === id ? [] : normalizeSelection(id)
-    set({ selectedProteinIds: newIds, activeProteinId: newIds[0] ?? null })
+    if (typeof id !== 'string' || id.length === 0) return
+    const { selectedProteinIds } = get()
+    const isAlreadySelected = selectedProteinIds.includes(id)
+    const nextIds = isAlreadySelected
+      ? selectedProteinIds.filter((pid) => pid !== id)
+      : [...selectedProteinIds, id]
+    set({
+      selectedProteinIds: nextIds,
+      activeProteinId: nextIds.length > 0 ? nextIds[nextIds.length - 1] : null,
+    })
   },
 
+  /** Selecciona un único ID, reemplazando cualquier selección previa.
+   *  Mantiene compatibilidad con componentes que esperan selección simple. */
   setActiveProteinId: (id) => {
-    const nextSelection = normalizeSelection(id)
-    set({ selectedProteinIds: nextSelection, activeProteinId: nextSelection[0] ?? null })
+    if (typeof id !== 'string' || id.length === 0) {
+      set({ selectedProteinIds: [], activeProteinId: null })
+      return
+    }
+    set({ selectedProteinIds: [id], activeProteinId: id })
   },
 
   clearSelection: () => set({ selectedProteinIds: [], activeProteinId: null }),
 }))
+
+// ── Helpers ─────────────────────────────────────────────────────────
 
 function omitKey(obj, key) {
   if (!(key in obj)) return obj
@@ -103,9 +130,16 @@ function omitKey(obj, key) {
   return next
 }
 
-// Política single-selection: solo se mantiene el primer ID válido de la lista.
-function normalizeSelection(ids) {
+/** Filtra IDs inválidos y elimina duplicados preservando el orden de inserción. */
+function sanitizeIds(ids) {
   const list = Array.isArray(ids) ? ids : [ids]
-  const firstValidId = list.find((id) => typeof id === 'string' && id.length > 0)
-  return firstValidId ? [firstValidId] : []
+  const seen = new Set()
+  const result = []
+  for (const id of list) {
+    if (typeof id === 'string' && id.length > 0 && !seen.has(id)) {
+      seen.add(id)
+      result.push(id)
+    }
+  }
+  return result
 }

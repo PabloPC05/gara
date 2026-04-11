@@ -854,8 +854,8 @@ export function DrawerBody({ protein }) {
   if (!v) return null
 
   return (
-    <div className="flex h-full flex-col bg-white overflow-hidden">
-      <ScrollArea className="flex-1 w-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+      <ScrollArea className="min-h-0 flex-1 w-full">
         <div className="divide-y divide-slate-100 px-5 pb-4">
           <IdentityPanel v={v} />
           <FunctionSection v={v} />

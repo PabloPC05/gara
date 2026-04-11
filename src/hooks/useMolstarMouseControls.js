@@ -4,6 +4,13 @@ import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/str
 import { applyRotation, applyTranslation } from '../lib/math/matrixUtils';
 import { commitTransform, DRAG_SCALE } from '../lib/molstar/structurePipeline';
 
+function getPreferredSeqId(loc) {
+  const labelSeqId = StructureProperties.residue.label_seq_id(loc);
+  if (Number.isFinite(labelSeqId) && labelSeqId > 0) return labelSeqId;
+  const authSeqId = StructureProperties.residue.auth_seq_id(loc);
+  return Number.isFinite(authSeqId) && authSeqId > 0 ? authSeqId : null;
+}
+
 /**
  * Hook para manejar la interacción del ratón con las estructuras en Mol*.
  * Abstrae el picking, la rotación (Ctrl+Drag) y la traslación de proteínas individuales.
@@ -30,30 +37,24 @@ export function useMolstarMouseControls({
       const pick = plugin.canvas3d.identify({ x: clientX - rect.left, y: clientY - rect.top });
       if (!pick) return null;
       
-      const loci = plugin.canvas3d.getLoci(pick.id);
-      if (!loci || loci.kind !== 'element-loci') return null;
+      const reprLoci = plugin.canvas3d.getLoci(pick.id);
+      if (!reprLoci?.loci || reprLoci.loci.kind !== 'element-loci') return null;
 
       let seqId = null;
       try {
-        const loc = StructureElement.Loci.getFirstLocation(loci);
+        const loc = StructureElement.Loci.getFirstLocation(reprLoci.loci);
         if (loc) {
-          const labelSeqId = StructureProperties.residue.label_seq_id(loc);
-          if (Number.isFinite(labelSeqId) && labelSeqId > 0) {
-            seqId = labelSeqId;
-          } else {
-            const authSeqId = StructureProperties.residue.auth_seq_id(loc);
-            seqId = Number.isFinite(authSeqId) ? authSeqId : null;
-          }
+          seqId = getPreferredSeqId(loc);
         }
       } catch (_) {
         seqId = null;
       }
       
-      const pickedModel = loci.structure?.model;
+      const pickedModel = reprLoci.loci.structure?.model;
       for (const [id, entry] of entriesRef.current) {
         const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
-        if (s && (s === loci.structure || s.model === pickedModel)) {
-          return { id, seqId };
+        if (s && (s === reprLoci.loci.structure || s.model === pickedModel)) {
+          return { id, seqId, reprLoci };
         }
       }
       return null;
@@ -70,7 +71,7 @@ export function useMolstarMouseControls({
       return { right, up };
     };
 
-    const handleMouseDown = (event) => {
+    const handlePointerDown = (event) => {
       if (event.button !== 0) return;
       const hit = pickAt(event.clientX, event.clientY);
       
@@ -81,10 +82,10 @@ export function useMolstarMouseControls({
       }
       const { id: hitId, seqId } = hit;
 
+      // Esto ahora detendrá el evento de Mol* correctamente
       event.stopImmediatePropagation();
       event.preventDefault();
 
-      // Si pulsamos CTRL, entramos en modo rotación local de la proteína seleccionada
       if (event.ctrlKey && selectedIdsRef.current.includes(hitId)) {
         const entry = entriesRef.current.get(hitId);
         dragRef.current = {
@@ -97,7 +98,6 @@ export function useMolstarMouseControls({
         return;
       }
 
-      // Si no, seleccionamos la proteína y preparamos traslación
       setSelectedProteinIds([hitId]);
       if (seqId != null) {
         setFocusedResidue({ proteinId: hitId, seqId });
@@ -115,7 +115,7 @@ export function useMolstarMouseControls({
       }
     };
 
-    const handleMouseMove = async (event) => {
+    const handlePointerMove = async (event) => {
       const drag = dragRef.current;
       if (!drag) return;
       const plugin = pluginRef.current;
@@ -144,18 +144,18 @@ export function useMolstarMouseControls({
       drag.lastY = event.clientY;
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       dragRef.current = null;
     };
 
-    container.addEventListener('mousedown', handleMouseDown, true);
-    window.addEventListener('mousemove', handleMouseMove, true);
-    window.addEventListener('mouseup', handleMouseUp, true);
+    container.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('pointermove', handlePointerMove, true);
+    window.addEventListener('pointerup', handlePointerUp, true);
     
     return () => {
-      container.removeEventListener('mousedown', handleMouseDown, true);
-      window.removeEventListener('mousemove', handleMouseMove, true);
-      window.removeEventListener('mouseup', handleMouseUp, true);
+      container.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      window.removeEventListener('pointerup', handlePointerUp, true);
     };
   }, [containerRef, pluginRef, entriesRef, selectedIdsRef, setSelectedProteinIds, setFocusedResidue]);
 }

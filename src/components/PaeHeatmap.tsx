@@ -13,7 +13,18 @@ interface PaeHeatmapProps {
   compact?: boolean
 }
 
-type PlotlyModule = typeof import('plotly.js-dist-min')
+interface PlotlyModule {
+  newPlot: (
+    graphDiv: HTMLDivElement,
+    data: unknown[],
+    layout?: unknown,
+    config?: unknown,
+  ) => Promise<unknown>
+  purge: (graphDiv: HTMLDivElement) => void
+  Plots: {
+    resize: (graphDiv: HTMLDivElement) => void
+  }
+}
 
 const CDN_URL = 'https://cdn.plot.ly/plotly-2.35.2.min.js'
 const COLORSCALE: [number, string][] = [
@@ -39,7 +50,7 @@ let plotlyPromise: Promise<PlotlyModule> | null = null
 function loadPlotly(): Promise<PlotlyModule> {
   if (plotlyPromise) return plotlyPromise
 
-  const w = window as any
+  const w = window as Window & { Plotly?: PlotlyModule }
   if (w.Plotly) {
     plotlyPromise = Promise.resolve(w.Plotly)
     return plotlyPromise
@@ -168,7 +179,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
     drawPlot()
     return () => {
       if (plotRef.current) {
-        const w = window as any
+        const w = window as Window & { Plotly?: PlotlyModule }
         if (w.Plotly) w.Plotly.purge(plotRef.current)
       }
     }
@@ -176,7 +187,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
 
   useEffect(() => {
     if (!plotRef.current || status !== 'ready') return
-    const w = window as any
+    const w = window as Window & { Plotly?: PlotlyModule }
     const handleResize = () => {
       if (plotRef.current && w.Plotly) w.Plotly.Plots.resize(plotRef.current)
     }
@@ -193,7 +204,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   }
 
   const plotDiv = (
-    <div className="relative">
+    <div className="flex items-center justify-center relative w-full h-full">
       {status === 'loading' && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-none">
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
@@ -211,8 +222,8 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
       )}
       <div
         ref={plotRef}
-        className="w-full"
-        style={{ minHeight: compact ? 220 : 320 }}
+        className="px-2 " 
+        style={{ maxWidth: 200 }}
       />
     </div>
   )
