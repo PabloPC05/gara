@@ -5,8 +5,17 @@ import { ProteinDetailsDrawer } from './components/ProteinDetailsDrawer'
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar'
 import { MenuBar } from './components/navigation/FloatingNavbar'
 import { ActivityBar } from './components/sidebar/ActivityBar'
+import { useEffect } from 'react'
+import useAuthStore from './stores/useAuthStore'
 
 export default function App() {
+  const { initializeAuth } = useAuthStore();
+
+  useEffect(() => {
+    const unsubscribe = initializeAuth();
+    return () => unsubscribe();
+  }, [initializeAuth]);
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#18181b]">
       <MenuBar />
