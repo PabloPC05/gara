@@ -69,92 +69,41 @@ export function UserAccountModule() {
 
             <DropdownMenuSeparator className="bg-slate-800 mb-1" />
             
-            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Mi Espacio
-            </DropdownMenuLabel>
-            
             <DropdownMenuGroup>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Mi Perfil")}
-              >
-                <User className="mr-2 h-4 w-4 text-slate-400 group-hover:text-[#e31e24] transition-colors" />
-                <span>Mi Perfil</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Mis Plegamientos")}
-              >
-                <Dna className="mr-2 h-4 w-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
-                <span>Mis Plegamientos</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
                 onClick={() => handleWipFeature("Historial de Trabajos")}  
               >
-                <History className="mr-2 h-4 w-4 text-slate-400 group-hover:text-purple-400 transition-colors" />
+                <History className="mr-2 h-4 w-4 text-slate-400 group-hover:text-blue-400 transition-colors" />
                 <span>Historial de Trabajos</span>
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-            
-            <DropdownMenuSeparator className="bg-slate-800 my-1" />
 
-            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Gestión y Recursos
-            </DropdownMenuLabel>
-            
-            <DropdownMenuGroup>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Facturación y Planes")}
+                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Cuota de Recursos (HPC)")}
               >
-                <CreditCard className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-400 transition-colors" />
-                <span>Facturación y Planes</span>
+                <Database className="mr-2 h-4 w-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+                <span>Cuota de Recursos (HPC)</span>
               </DropdownMenuItem>
+              
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Claves API")}
+                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Configuración")}
               >
-                <Key className="mr-2 h-4 w-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
-                <span>Claves API</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Uso de Almacenamiento")}
-              >
-                <Database className="mr-2 h-4 w-4 text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                <span>Almacenamiento</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            
-            <DropdownMenuSeparator className="bg-slate-800 my-1" />
-
-            <DropdownMenuGroup>
-              <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Ajustes de Sesión")}
-              >
-                <Sliders className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
-                <span>Ajustes de Sesión</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Motor de Predicción")}  
-              >
-                <Microscope className="mr-2 h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                <span>Motor de Predicción</span>
+                <Settings className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-400 transition-colors" />
+                <span>Configuración</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             
             <DropdownMenuSeparator className="bg-slate-800 my-1" />
             
             <DropdownMenuItem 
-              className="rounded-xl px-3 py-2 text-sm font-medium text-red-500 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 hover:text-red-400 focus:text-red-400 transition-colors flex items-center outline-none"
+              className="rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 hover:text-red-400 focus:text-red-400 transition-colors flex items-center outline-none"
               onClick={() => logOut()}
             >
               <LogOut className="mr-2 h-4 w-4" />
               <span>Cerrar Sesión</span>
-            </DropdownMenuItem>
+            </DropdownMenuItem>enuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
