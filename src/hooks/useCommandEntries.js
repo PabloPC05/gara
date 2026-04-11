@@ -19,14 +19,21 @@ export const isValidEntry = (value) => {
   return PDB_ID_PATTERN.test(trimmed) || isValidSequence(trimmed)
 }
 
-const createEntry = () => ({ id: crypto.randomUUID(), value: '' })
+const createEntry = (value = '') => ({ id: crypto.randomUUID(), value })
+
+// Una entrada por cada hélice del mock (MolecularUniverseMock.HELICES).
+// Cuando conectes proteínas reales, sustitúyelo por la lista canónica.
+const INITIAL_ENTRY_COUNT = 3
+
+const createInitialEntries = () =>
+  Array.from({ length: INITIAL_ENTRY_COUNT }, () => createEntry())
 
 /**
  * Estado y operaciones de la lista de entradas híbridas del sidebar.
  * Sólo permite añadir una nueva entrada si todas las existentes son válidas.
  */
 export function useCommandEntries() {
-  const [entries, setEntries] = useState(() => [createEntry()])
+  const [entries, setEntries] = useState(createInitialEntries)
   const [focusedId, setFocusedId] = useState(() => entries[0].id)
 
   const updateEntry = useCallback((id, value) => {

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { use3DmolViewer } from '../../hooks/use3DmolViewer'
 import { buildHelixPdb } from '../../lib/helix'
+import { useProteinStore } from '../../stores/useProteinStore'
 import ViewerCanvas from './ViewerCanvas'
 
 const HELICES = [
@@ -9,7 +10,12 @@ const HELICES = [
   { residues: 30, offset: { x: -35, y: -20, z: 15 }, color: 0xec4899 },
 ]
 
-const PICK_RADIUS_PX = 45
+// Padding del bounding box en píxeles: margen alrededor de la proyección
+// 2D de la hélice dentro del cual un click cuenta como impacto directo.
+const PICK_BBOX_PADDING_PX = 10
+// Fallback cuando el click no cae dentro de ningún bbox: la hélice más
+// cercana gana si su átomo más próximo está dentro de este radio.
+const PICK_NEAREST_FALLBACK_PX = 25
 const HALO_COLOR = 0xfde047
 
 const baseStyle = (color) => ({
@@ -22,9 +28,9 @@ const haloStyle = {
   stick: { color: HALO_COLOR, radius: 0.55, opacity: 0.5 },
 }
 
-const applyModelStyle = (entry, isSelected) => {
+const applyModelStyle = (entry, isActive) => {
   entry.model.setStyle({}, baseStyle(entry.color))
-  if (isSelected) entry.model.addStyle({}, haloStyle)
+  if (isActive) entry.model.setStyle({}, haloStyle, true)
 }
 
 const translateModelAtoms = (model, dx, dy, dz) => {
@@ -36,15 +42,60 @@ const translateModelAtoms = (model, dx, dy, dz) => {
   }
 }
 
+const computeCentroid = (model) => {
+  const atoms = model.selectedAtoms({})
+  if (atoms.length === 0) return { x: 0, y: 0, z: 0 }
+  let x = 0, y = 0, z = 0
+  for (const atom of atoms) {
+    x += atom.x
+    y += atom.y
+    z += atom.z
+  }
+  return { x: x / atoms.length, y: y / atoms.length, z: z / atoms.length }
+}
+
+// Rotación rígida alrededor del centroide: yaw en torno al eje Y del mundo,
+// pitch en torno al eje X. Preserva distancias entre átomos → la forma no
+// se deforma, solo cambia el ángulo del modelo.
+const rotateModelAroundCentroid = (model, c, yaw, pitch) => {
+  const atoms = model.selectedAtoms({})
+  const cy = Math.cos(yaw)
+  const sy = Math.sin(yaw)
+  const cp = Math.cos(pitch)
+  const sp = Math.sin(pitch)
+  for (const atom of atoms) {
+    let dx = atom.x - c.x
+    let dy = atom.y - c.y
+    let dz = atom.z - c.z
+    const rx = cy * dx + sy * dz
+    const rz = -sy * dx + cy * dz
+    dx = rx
+    dz = rz
+    const ry = cp * dy - sp * dz
+    const rz2 = sp * dy + cp * dz
+    dy = ry
+    dz = rz2
+    atom.x = c.x + dx
+    atom.y = c.y + dy
+    atom.z = c.z + dz
+  }
+}
+
 export default function MolecularUniverseMock({ background = '#ffffff' }) {
-  const [selectedIds, setSelectedIds] = useState(() => new Set())
-  const selectedIdsRef = useRef(selectedIds)
+  const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds)
+  const setSelectedProteinIds = useProteinStore((state) => state.setSelectedProteinIds)
+  const toggleProteinSelection = useProteinStore((state) => state.toggleProteinSelection)
+  const clearSelection = useProteinStore((state) => state.clearSelection)
+
+  // Ref en vivo para que los handlers de mouse (que se registran una sola vez)
+  // siempre lean el valor actual del store sin cerrarse sobre uno viejo.
+  const selectedProteinIdsRef = useRef(selectedProteinIds)
+  useEffect(() => {
+    selectedProteinIdsRef.current = selectedProteinIds
+  }, [selectedProteinIds])
+
   const modelsRef = useRef([])
   const dragStateRef = useRef(null)
-
-  useEffect(() => {
-    selectedIdsRef.current = selectedIds
-  }, [selectedIds])
 
   const { containerRef, viewerRef } = use3DmolViewer({
     config: { backgroundColor: background },
@@ -53,7 +104,7 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
         const id = `helix-${index}`
         const model = viewer.addModel(buildHelixPdb(helix.residues, helix.offset), 'pdb')
         const entry = { id, color: helix.color, model }
-        applyModelStyle(entry, selectedIdsRef.current.has(id))
+        applyModelStyle(entry, selectedProteinIdsRef.current.includes(id))
         return entry
       })
       modelsRef.current = entries
@@ -64,38 +115,84 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
     deps: [background],
   })
 
+  // Sidebar → 3D: cuando cambian los seleccionados, repinta los halos.
   useEffect(() => {
     const viewer = viewerRef.current
     if (!viewer || modelsRef.current.length === 0) return
-    modelsRef.current.forEach((entry) => applyModelStyle(entry, selectedIds.has(entry.id)))
+    modelsRef.current.forEach((entry) =>
+      applyModelStyle(entry, selectedProteinIds.includes(entry.id))
+    )
     viewer.render()
-  }, [selectedIds, viewerRef])
+  }, [selectedProteinIds, viewerRef])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    const pickEntryAt = (clientX, clientY) => {
+    // `modelToScreen` de 3Dmol devuelve coordenadas **de página** (suma el
+    // offset del canvas en el documento + pageXOffset). Por eso el cursor
+    // se compara también en coordenadas de página, no viewport — así ambos
+    // lados de la comparación están en el mismo sistema.
+    const pickEntryAt = (pageX, pageY) => {
       const viewer = viewerRef.current
       if (!viewer) return null
-      const rect = container.getBoundingClientRect()
-      const px = clientX - rect.left
-      const py = clientY - rect.top
-      let best = null
-      let bestDist = PICK_RADIUS_PX
+      const px = pageX
+      const py = pageY
 
+      // Para cada hélice proyectamos todos sus átomos a pantalla y
+      // calculamos bbox + distancia al átomo más cercano (en cuadrado,
+      // sin sqrt para ahorrar trabajo en el bucle caliente).
+      const infos = []
       for (const entry of modelsRef.current) {
         const atoms = entry.model.selectedAtoms({})
+        if (atoms.length === 0) continue
+
+        let minX = Infinity
+        let maxX = -Infinity
+        let minY = Infinity
+        let maxY = -Infinity
+        let minAtomDistSq = Infinity
+
         for (const atom of atoms) {
-          const screen = viewer.modelToScreen({ x: atom.x, y: atom.y, z: atom.z })
-          const dist = Math.hypot(screen.x - px, screen.y - py)
-          if (dist < bestDist) {
-            bestDist = dist
-            best = entry
-          }
+          const s = viewer.modelToScreen({ x: atom.x, y: atom.y, z: atom.z })
+          if (s.x < minX) minX = s.x
+          if (s.x > maxX) maxX = s.x
+          if (s.y < minY) minY = s.y
+          if (s.y > maxY) maxY = s.y
+          const ddx = s.x - px
+          const ddy = s.y - py
+          const d2 = ddx * ddx + ddy * ddy
+          if (d2 < minAtomDistSq) minAtomDistSq = d2
         }
+
+        infos.push({ entry, minX, maxX, minY, maxY, minAtomDistSq })
       }
-      return best
+
+      if (infos.length === 0) return null
+
+      // Capa 1: impacto directo → hélices cuyo bbox (con padding) contiene
+      // el cursor. Si hay varias (solapamiento), gana la que tenga el átomo
+      // más cercano al cursor en 2D.
+      const pad = PICK_BBOX_PADDING_PX
+      const insideHits = infos.filter(
+        (h) =>
+          px >= h.minX - pad &&
+          px <= h.maxX + pad &&
+          py >= h.minY - pad &&
+          py <= h.maxY + pad,
+      )
+
+      if (insideHits.length > 0) {
+        insideHits.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
+        return insideHits[0].entry
+      }
+
+      // Capa 2: ningún bbox contiene el click, pero tal vez alguna hélice
+      // está lo bastante cerca como para aceptarla (clicks justo al borde).
+      infos.sort((a, b) => a.minAtomDistSq - b.minAtomDistSq)
+      const nearest = infos[0]
+      const maxSq = PICK_NEAREST_FALLBACK_PX * PICK_NEAREST_FALLBACK_PX
+      return nearest.minAtomDistSq <= maxSq ? nearest.entry : null
     }
 
     const computeScreenBasis = () => {
@@ -122,40 +219,51 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       }
     }
 
-    const nextSelectionFor = (prev, hitId, shiftKey) => {
-      if (shiftKey) {
-        const next = new Set(prev)
-        if (next.has(hitId)) next.delete(hitId)
-        else next.add(hitId)
-        return next
-      }
-      if (prev.has(hitId)) return prev
-      return new Set([hitId])
-    }
-
     const handleMouseDown = (event) => {
       if (event.button !== 0) return
-      const hit = pickEntryAt(event.clientX, event.clientY)
-      if (!hit) return
+      const hit = pickEntryAt(event.pageX, event.pageY)
+
+      if (!hit) {
+        // Click sobre zona vacía del visor → deselecciona todo.
+        // Dejamos bubblear el evento para que Radix detecte el outside click
+        // del drawer también, aunque con clearSelection el panel ya se cierra.
+        clearSelection()
+        return
+      }
 
       event.stopImmediatePropagation()
       event.preventDefault()
 
-      setSelectedIds((prev) => {
-        const next = nextSelectionFor(prev, hit.id, event.shiftKey)
-        if (next.has(hit.id)) {
-          const basis = computeScreenBasis()
-          if (basis) {
-            dragStateRef.current = {
-              lastX: event.clientX,
-              lastY: event.clientY,
-              basis,
-              ids: new Set(next),
-            }
-          }
+      // Ctrl + click sobre una proteína ya seleccionada → rotación rígida.
+      // No cambia la selección: conserva la activa y empieza el drag de rotación.
+      if (event.ctrlKey && selectedProteinIdsRef.current.includes(hit.id)) {
+        dragStateRef.current = {
+          mode: 'rotate',
+          id: hit.id,
+          centroid: computeCentroid(hit.model),
+          lastX: event.clientX,
+          lastY: event.clientY,
         }
-        return next
-      })
+        return
+      }
+
+      // 3D → store: selecciona la hélice clickeada (shift = toggle multi).
+      if (event.shiftKey) {
+        toggleProteinSelection(hit.id)
+      } else {
+        setSelectedProteinIds([hit.id])
+      }
+
+      const basis = computeScreenBasis()
+      if (basis) {
+        dragStateRef.current = {
+          mode: 'translate',
+          lastX: event.clientX,
+          lastY: event.clientY,
+          basis,
+          id: hit.id,
+        }
+      }
     }
 
     const handleMouseMove = (event) => {
@@ -171,13 +279,18 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       const dyPx = event.clientY - drag.lastY
       if (dxPx === 0 && dyPx === 0) return
 
-      const world = screenDeltaToWorld(dxPx, dyPx, drag.basis)
-      drag.ids.forEach((id) => {
-        const entry = modelsRef.current.find((m) => m.id === id)
-        if (!entry) return
-        translateModelAtoms(entry.model, world.x, world.y, 0)
+      const entry = modelsRef.current.find((m) => m.id === drag.id)
+      if (entry) {
+        if (drag.mode === 'rotate') {
+          const yaw = dxPx * 0.01
+          const pitch = dyPx * 0.01
+          rotateModelAroundCentroid(entry.model, drag.centroid, yaw, pitch)
+        } else {
+          const world = screenDeltaToWorld(dxPx, dyPx, drag.basis)
+          translateModelAtoms(entry.model, world.x, world.y, 0)
+        }
         applyModelStyle(entry, true)
-      })
+      }
       drag.lastX = event.clientX
       drag.lastY = event.clientY
       viewer.render()
@@ -195,12 +308,12 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
       window.removeEventListener('mousemove', handleMouseMove, true)
       window.removeEventListener('mouseup', handleMouseUp, true)
     }
-  }, [containerRef, viewerRef])
+  }, [containerRef, viewerRef, setSelectedProteinIds, toggleProteinSelection, clearSelection])
 
   return (
     <ViewerCanvas containerRef={containerRef}>
       <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-black uppercase tracking-widest pointer-events-none">
-        Mock · Click para seleccionar · Shift para multi · Arrastra para mover
+        Mock · Click para seleccionar · Arrastra para mover
       </div>
     </ViewerCanvas>
   )

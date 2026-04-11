@@ -9,7 +9,10 @@ const DOT_GRID_STYLE = {
  */
 export default function ViewerCanvas({ containerRef, children }) {
   return (
-    <div className="w-full h-full relative bg-[#f7f8fa] flex items-center justify-center min-h-[500px]">
+    <div
+      data-role="molecular-viewer"
+      className="w-full h-full relative bg-[#f7f8fa] flex items-center justify-center min-h-[500px]"
+    >
       <div
         ref={containerRef}
         className="w-full h-full absolute inset-0"
