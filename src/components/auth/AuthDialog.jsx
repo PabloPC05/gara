@@ -52,7 +52,7 @@ export function AuthDialog({ open, onOpenChange }) {
             {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            {isLogin 
+            {isLogin
               ? 'Accede para guardar y gestionar tus proteínas.'
               : 'Regístrate para guardar y gestionar tus proteínas en la nube.'
             }
@@ -105,8 +105,8 @@ export function AuthDialog({ open, onOpenChange }) {
               onClick={handleToggleMode}
               className="text-sm text-blue-400 hover:text-blue-300 hover:underline"
             >
-              {isLogin 
-                ? '¿No tienes cuenta? Regístrate aquí' 
+              {isLogin
+                ? '¿No tienes cuenta? Regístrate aquí'
                 : '¿Ya tienes cuenta? Inicia sesión'}
             </button>
           </div>
