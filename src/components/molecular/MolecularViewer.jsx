@@ -19,6 +19,13 @@ import {
   LIGHTING_PRESETS
 } from '../../lib/molstar/structurePipeline';
 
+function getPreferredSeqId(loc) {
+  const labelSeqId = StructureProperties.residue.label_seq_id(loc);
+  if (Number.isFinite(labelSeqId) && labelSeqId > 0) return labelSeqId;
+  const authSeqId = StructureProperties.residue.auth_seq_id(loc);
+  return Number.isFinite(authSeqId) ? authSeqId : null;
+}
+
 /**
  * MolecularViewer — Orquestador principal del visor 3D.
  *
@@ -44,6 +51,7 @@ export default function MolecularViewer() {
   const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
   const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
   const focusedResidue       = useUIStore((s) => s.focusedResidue);       // residuo seleccionado desde FastaBar
+  const setFocusedResidue    = useUIStore((s) => s.setFocusedResidue);
 
   // ── Live refs ──────────────────────────────────────────────────────────────
   // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
@@ -103,10 +111,12 @@ export default function MolecularViewer() {
         try {
           const loc = StructureElement.Loci.getFirstLocation(current.loci);
           if (!loc) { setHoverTooltip(null); return; }
+          const seqId = getPreferredSeqId(loc);
+          if (seqId == null) { setHoverTooltip(null); return; }
 
           setHoverTooltip({
             code:    StructureProperties.residue.auth_comp_id(loc),    // p.ej. "GLY"
-            seqId:   StructureProperties.residue.auth_seq_id(loc),     // nº en la cadena
+            seqId,                                                     // nº en la cadena
             chainId: StructureProperties.chain.auth_asym_id(loc),      // "A", "B", …
             plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1), // confianza AlphaFold
           });
@@ -129,6 +139,7 @@ export default function MolecularViewer() {
     entriesRef,
     selectedIdsRef,
     setSelectedProteinIds,
+    setFocusedResidue,
   });
 
   // ── 3. Efectos reactivos ───────────────────────────────────────────────────
@@ -181,7 +192,11 @@ export default function MolecularViewer() {
       return;
     }
 
-    const activeId = selectedProteinIds[0];
+    const selectedProteinId = selectedProteinIds[0];
+    const activeId =
+      focusedResidue?.proteinId && focusedResidue.proteinId === selectedProteinId
+        ? focusedResidue.proteinId
+        : selectedProteinId;
     if (!activeId) {
       setSelectedTooltip(null);
       return;
@@ -199,14 +214,24 @@ export default function MolecularViewer() {
       return;
     }
 
+    const seqId = getPreferredSeqId(loc);
+    if (seqId == null) {
+      setSelectedTooltip(null);
+      return;
+    }
+
+    if (focusedResidue.seqId !== seqId || focusedResidue.proteinId !== activeId) {
+      setFocusedResidue({ proteinId: activeId, seqId });
+    }
+
     const plddt = StructureProperties.atom.B_iso_or_equiv(loc);
     setSelectedTooltip({
       code: StructureProperties.residue.auth_comp_id(loc),
-      seqId: StructureProperties.residue.auth_seq_id(loc),
+      seqId,
       chainId: StructureProperties.chain.auth_asym_id(loc),
       plddt: Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
     });
-  }, [focusedResidue, pluginRef, selectedProteinIds]);
+  }, [focusedResidue, pluginRef, selectedProteinIds, setFocusedResidue]);
 
   // Esquema de iluminación (ao / flat / studio):
   // Aplica el preset completo, incluyendo oclusión ambiental, sombras,

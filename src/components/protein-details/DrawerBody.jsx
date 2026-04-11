@@ -11,6 +11,10 @@ import {
   Terminal,
 } from 'lucide-react'
 import PaeHeatmap from '@/components/PaeHeatmap'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import ExportDriveButton from '../ExportDriveButton'
 
 /* ─────────────── utilidades numéricas ─────────────── */
@@ -225,12 +229,13 @@ function IdentityPanel({ v }) {
       {v.tags.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {v.tags.map((tag) => (
-            <span
+            <Badge
               key={tag}
-              className="inline-flex rounded-none border border-slate-200 bg-slate-50/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+              variant="outline"
+              className="rounded-none border border-slate-200 bg-slate-50/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 font-sans"
             >
               {tag}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
@@ -514,12 +519,13 @@ function AlertRow({ label, alerts }) {
       </span>
       <div className="flex flex-wrap justify-end gap-1">
         {alerts.map((alert, i) => (
-          <span
+          <Badge
             key={i}
-            className="inline-flex rounded-none border border-amber-300 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+            variant="outline"
+            className="rounded-none border-amber-300 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 font-sans"
           >
             {alert}
-          </span>
+          </Badge>
         ))}
       </div>
     </div>
@@ -609,7 +615,7 @@ function SequenceSection({ v }) {
 
   return (
     <Section title="Secuencia" aside={`${intFmt.format(sequence.length)} aa`}>
-      <div className="minimal-scrollbar max-h-32 overflow-y-auto rounded-none border border-slate-200 bg-slate-50/40 p-2 font-mono text-[10px] leading-[1.6] text-slate-700">
+      <ScrollArea className="h-32 rounded-none border border-slate-200 bg-slate-50/40 p-2 font-mono text-[10px] leading-[1.6] text-slate-700">
         {rows.map((row) => (
           <div key={row.start} className="flex gap-2 whitespace-nowrap">
             <span className="w-10 shrink-0 text-right tabular-nums text-slate-400">
@@ -622,25 +628,27 @@ function SequenceSection({ v }) {
             </span>
           </div>
         ))}
-      </div>
+      </ScrollArea>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setShowChem((x) => !x)}
-          className="inline-flex items-center gap-1 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
+          className="h-6 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900"
         >
-          <FlaskConical className="h-3 w-3" strokeWidth={2} />
+          <FlaskConical className="h-3 w-3 mr-1" strokeWidth={2} />
           {showChem ? 'Ocultar estructura química' : 'Ver estructura química'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleDownload}
-          className="inline-flex items-center gap-1 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900"
+          className="h-6 rounded-none border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900"
         >
-          <Download className="h-3 w-3" strokeWidth={2} />
-          FASTA
-        </button>
+          <Download className="h-3 w-3 mr-1" strokeWidth={2} />
+          Descargar FASTA
+        </Button>
       </div>
 
       {showChem && <ChemicalBackbone sequence={sequence} />}
@@ -802,24 +810,24 @@ VIABILIDAD BIOLÓGICA:
         }}
       />
       <div className="flex gap-2">
-        <button
-          type="button"
+        <Button
+          variant="default"
           disabled={!hasPdb}
           onClick={handleDownloadPdb}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-none bg-blue-600 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-700 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex-1 rounded-none bg-blue-600 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-blue-700 h-9 shrink-0 shadow-lg shadow-blue-200/60"
         >
-          <Download className="h-3 w-3" strokeWidth={2.5} />
+          <Download className="h-3 w-3 mr-1.5" strokeWidth={2.5} />
           Descargar PDB
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outline"
           disabled={!hasLogs}
           onClick={() => setShowLogs((x) => !x)}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 transition-colors hover:bg-slate-50 hover:border-slate-300 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+          className="flex-1 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:border-slate-300 h-9 shrink-0 shadow-sm"
         >
-          <Terminal className="h-3 w-3" strokeWidth={2.5} />
+          <Terminal className="h-3 w-3 mr-1.5" strokeWidth={2.5} />
           {showLogs ? 'Ocultar logs' : 'Ver logs'}
-        </button>
+        </Button>
       </div>
 
       {showLogs && hasLogs && (
@@ -846,8 +854,8 @@ export function DrawerBody({ protein }) {
   if (!v) return null
 
   return (
-    <div className="flex h-full flex-col bg-white">
-      <div className="minimal-scrollbar flex-1 overflow-y-auto">
+    <div className="flex h-full flex-col bg-white overflow-hidden">
+      <ScrollArea className="flex-1 w-full">
         <div className="divide-y divide-slate-100 px-5 pb-4">
           <IdentityPanel v={v} />
           <FunctionSection v={v} />
@@ -858,7 +866,7 @@ export function DrawerBody({ protein }) {
           <KnownStructures v={v} />
           <SequenceSection v={v} />
         </div>
-      </div>
+      </ScrollArea>
       <ActionBar protein={protein} />
     </div>
   )

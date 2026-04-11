@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Dna, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ComparisonColumn } from './ComparisonColumn'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function ComparisonBody({ proteins, visibleCount = 2 }) {
   const [startIndex, setStartIndex] = useState(0)
@@ -67,14 +69,17 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
       </header>
 
       <div className="relative flex-1 overflow-hidden">
-        <div
-          className="grid h-full divide-x divide-slate-100 overflow-y-auto minimal-scrollbar"
-          style={gridStyle}
+        <ScrollArea
+          className="h-full w-full"
         >
-          {visible.map((protein) => (
-            <ComparisonColumn key={protein.id} protein={protein} />
-          ))}
-        </div>
+          <div className="flex h-full w-max divide-x divide-slate-100" style={gridStyle}>
+            {visible.map((protein) => (
+              <div key={protein.id} className="min-w-[200px] flex-1">
+                <ComparisonColumn protein={protein} />
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
 
         {needsNavigation && (
           <>
@@ -104,14 +109,15 @@ export function ComparisonBody({ proteins, visibleCount = 2 }) {
 function NavButton({ side, disabled, onClick, label, children }) {
   const position = side === 'left' ? 'left-3' : 'right-3'
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      size="icon"
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`absolute top-1/2 ${position} z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-none border border-slate-200 bg-white/90 text-slate-500 shadow-lg backdrop-blur transition hover:border-blue-200 hover:text-blue-600 hover:shadow-xl disabled:pointer-events-none disabled:opacity-0`}
+      className={`absolute top-1/2 ${position} z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-none border border-slate-200 bg-white/90 text-slate-500 shadow-lg backdrop-blur hover:border-blue-200 hover:text-blue-600 hover:shadow-xl hover:bg-white`}
     >
       {children}
-    </button>
+    </Button>
   )
 }

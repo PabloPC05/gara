@@ -34,6 +34,25 @@ const CAMERA_VISIBILITY = {
   sceneRadiusFactor: 3,                           // radiusMax = 3× bspRadius → far fijo y generoso
 };
 
+// Interacción de residuos: hover rojo y selección verde.
+const RESIDUE_HOVER_COLOR = Color(0xef4444);
+const RESIDUE_SELECT_COLOR = Color(0x22c55e);
+
+const INTERACTION_RENDERER = {
+  highlightColor: RESIDUE_HOVER_COLOR,
+  selectColor: RESIDUE_SELECT_COLOR,
+  highlightStrength: 0.55,
+  selectStrength: 0.8,
+};
+
+const INTERACTION_MARKING = {
+  enabled: true,
+  highlightEdgeColor: RESIDUE_HOVER_COLOR,
+  selectEdgeColor: RESIDUE_SELECT_COLOR,
+  highlightEdgeStrength: 1,
+  selectEdgeStrength: 1,
+};
+
 export const LIGHTING_PRESETS = {
   ao: {
     postprocessing: {
@@ -53,7 +72,14 @@ export const LIGHTING_PRESETS = {
       },
       shadow: { name: 'off', params: {} },
     },
-    renderer: { ambientIntensity: 0.9, lightIntensity: 0.4, metalness: 0, roughness: 1.0 },
+    renderer: {
+      ...INTERACTION_RENDERER,
+      ambientIntensity: 0.9,
+      lightIntensity: 0.4,
+      metalness: 0,
+      roughness: 1.0,
+    },
+    marking: { ...INTERACTION_MARKING },
     ...CAMERA_VISIBILITY,
   },
   flat: {
@@ -61,7 +87,14 @@ export const LIGHTING_PRESETS = {
       occlusion: { name: 'off', params: {} },
       shadow: { name: 'off', params: {} },
     },
-    renderer: { ambientIntensity: 1.0, lightIntensity: 0.0, metalness: 0, roughness: 1.0 },
+    renderer: {
+      ...INTERACTION_RENDERER,
+      ambientIntensity: 1.0,
+      lightIntensity: 0.0,
+      metalness: 0,
+      roughness: 1.0,
+    },
+    marking: { ...INTERACTION_MARKING },
     ...CAMERA_VISIBILITY,
   },
   studio: {
@@ -69,7 +102,14 @@ export const LIGHTING_PRESETS = {
       occlusion: { name: 'off', params: {} },
       shadow: { name: 'off', params: {} },
     },
-    renderer: { ambientIntensity: 0.6, lightIntensity: 0.8, metalness: 0, roughness: 0.8 },
+    renderer: {
+      ...INTERACTION_RENDERER,
+      ambientIntensity: 0.6,
+      lightIntensity: 0.8,
+      metalness: 0,
+      roughness: 0.8,
+    },
+    marking: { ...INTERACTION_MARKING },
     ...CAMERA_VISIBILITY,
   },
 };

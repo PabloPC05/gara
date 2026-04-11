@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js';
+import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure.js';
 import { applyRotation, applyTranslation } from '../lib/math/matrixUtils';
 import { commitTransform, DRAG_SCALE } from '../lib/molstar/structurePipeline';
 
@@ -13,6 +14,7 @@ export function useMolstarMouseControls({
   entriesRef,
   selectedIdsRef,
   setSelectedProteinIds,
+  setFocusedResidue,
 }) {
   const dragRef = useRef(null);
 
@@ -20,7 +22,7 @@ export function useMolstarMouseControls({
     const container = containerRef.current;
     if (!container) return;
 
-    /** Picking por píxel: devuelve el protein id o null. */
+    /** Picking por píxel: devuelve protein id + residuo (si existe). */
     const pickAt = (clientX, clientY) => {
       const plugin = pluginRef.current;
       if (!plugin?.canvas3d) return null;
@@ -30,11 +32,29 @@ export function useMolstarMouseControls({
       
       const loci = plugin.canvas3d.getLoci(pick.id);
       if (!loci || loci.kind !== 'element-loci') return null;
+
+      let seqId = null;
+      try {
+        const loc = StructureElement.Loci.getFirstLocation(loci);
+        if (loc) {
+          const labelSeqId = StructureProperties.residue.label_seq_id(loc);
+          if (Number.isFinite(labelSeqId) && labelSeqId > 0) {
+            seqId = labelSeqId;
+          } else {
+            const authSeqId = StructureProperties.residue.auth_seq_id(loc);
+            seqId = Number.isFinite(authSeqId) ? authSeqId : null;
+          }
+        }
+      } catch (_) {
+        seqId = null;
+      }
       
       const pickedModel = loci.structure?.model;
       for (const [id, entry] of entriesRef.current) {
         const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
-        if (s && (s === loci.structure || s.model === pickedModel)) return id;
+        if (s && (s === loci.structure || s.model === pickedModel)) {
+          return { id, seqId };
+        }
       }
       return null;
     };
@@ -52,10 +72,14 @@ export function useMolstarMouseControls({
 
     const handleMouseDown = (event) => {
       if (event.button !== 0) return;
-      const hitId = pickAt(event.clientX, event.clientY);
+      const hit = pickAt(event.clientX, event.clientY);
       
-      // Click en fondo vacío: no hace nada (des-selección solo desde el sidebar)
-      if (!hitId) return;
+      // Click en fondo vacío: limpia el residuo enfocado para quitar la selección activa.
+      if (!hit) {
+        setFocusedResidue(null);
+        return;
+      }
+      const { id: hitId, seqId } = hit;
 
       event.stopImmediatePropagation();
       event.preventDefault();
@@ -75,6 +99,9 @@ export function useMolstarMouseControls({
 
       // Si no, seleccionamos la proteína y preparamos traslación
       setSelectedProteinIds([hitId]);
+      if (seqId != null) {
+        setFocusedResidue({ proteinId: hitId, seqId });
+      }
 
       const axes = getCameraAxes();
       if (axes) {
@@ -130,5 +157,5 @@ export function useMolstarMouseControls({
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('mouseup', handleMouseUp, true);
     };
-  }, [containerRef, pluginRef, entriesRef, selectedIdsRef, setSelectedProteinIds]);
+  }, [containerRef, pluginRef, entriesRef, selectedIdsRef, setSelectedProteinIds, setFocusedResidue]);
 }

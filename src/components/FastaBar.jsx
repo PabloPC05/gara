@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 import { useProteinStore } from '@/stores/useProteinStore'
 import { useUIStore } from '@/stores/useUIStore'
@@ -52,8 +52,24 @@ export function FastaBar() {
 
   const isEditing = focused || isPickerOpen || draftSequence.length > 0
   const inputValue = isEditing ? draftSequence : proteinSequence
-  const isActive = focused || isPickerOpen
   const canProcess = isEditing ? isValidEntry(draftSequence) : isValidEntry(proteinSequence)
+  const selectedSeqId =
+    focusedResidue?.proteinId && focusedResidue.proteinId !== activeProteinId
+      ? null
+      : focusedResidue?.seqId ?? null
+
+  const focusSeqId = useCallback((seqId) => {
+    if (!Number.isFinite(seqId)) return
+    if (activeProteinId) {
+      setFocusedResidue({ proteinId: activeProteinId, seqId })
+      return
+    }
+    setFocusedResidue({ seqId })
+  }, [activeProteinId, setFocusedResidue])
+
+  const clearFocusedResidue = useCallback(() => {
+    setFocusedResidue(null)
+  }, [setFocusedResidue])
 
   // Navegación por teclado (←/→) entre residuos, no cíclica
   useEffect(() => {
@@ -65,11 +81,11 @@ export function FastaBar() {
       const next = e.key === 'ArrowLeft'
         ? Math.max(1, focusedResidue.seqId - 1)
         : Math.min(proteinSequence.length, focusedResidue.seqId + 1)
-      if (next !== focusedResidue.seqId) setFocusedResidue({ seqId: next })
+      if (next !== focusedResidue.seqId) focusSeqId(next)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEditing, proteinSequence, focusedResidue, setFocusedResidue])
+  }, [isEditing, proteinSequence, focusedResidue, focusSeqId])
 
   // Auto-scroll al residuo seleccionado en la barra
   useEffect(() => {
@@ -77,6 +93,22 @@ export function FastaBar() {
     const el = sequenceContainerRef.current.querySelector('[data-selected="true"]')
     el?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
   }, [focusedResidue])
+
+  // Scroll horizontal con rueda del ratón
+  useEffect(() => {
+    const el = sequenceContainerRef.current
+    if (!el) return
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY
+      }
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [isEditing, proteinSequence])
 
   const leftOpen = activeTab !== null
   const hasProtein = !!activeProteinId
@@ -107,7 +139,7 @@ export function FastaBar() {
 
   const handleFocus = () => {
     setFocused(true)
-    setFocusedResidue(null)
+    clearFocusedResidue()
     if (!draftSequence && proteinSequence) {
       setDraftSequence(proteinSequence)
     }
@@ -127,6 +159,18 @@ export function FastaBar() {
       if (canProcess) {
         handleConfirmPicker()
       }
+    }
+  }
+
+  const handleScrollLeft = () => {
+    if (sequenceContainerRef.current) {
+      sequenceContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' })
+    }
+  }
+
+  const handleScrollRight = () => {
+    if (sequenceContainerRef.current) {
+      sequenceContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' })
     }
   }
 
@@ -162,60 +206,82 @@ export function FastaBar() {
 
             {!isEditing && proteinSequence ? (
               /* Vista de residuos clicables (modo lectura) */
-              <div ref={sequenceContainerRef} className="overflow-x-auto overflow-y-hidden" style={{ maxHeight: '36px' }}>
-                <div className="flex items-center gap-px px-3 pb-1.5 pt-0.5 w-max select-none">
-                  {[...proteinSequence].map((letter, i) => {
-                    const group = AA_GROUP_MAP[letter] ?? ''
-                    const colors = AA_GROUP_COLORS[group]
-                    const isSelected = focusedResidue?.seqId === i + 1
-                    const tooltipText = `${letter} · pos ${i + 1}`
+              <div className="relative group flex items-center w-full">
+                <button
+                  onClick={handleScrollLeft}
+                  className="absolute left-0 z-10 h-[calc(100%-8px)] px-1.5 bg-gradient-to-r from-[#e4e4e7] via-[#e4e4e7] to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-zinc-500 hover:text-zinc-800"
+                  aria-label="Scroll left"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
 
-                    if (isSelected) {
+                <div
+                  ref={sequenceContainerRef}
+                  className="overflow-x-auto overflow-y-hidden w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                  style={{ maxHeight: '36px' }}
+                >
+                  <div className="flex items-center gap-1.5 px-6 pb-1.5 pt-0.5 w-max select-none">
+                    {[...proteinSequence].map((letter, i) => {
+                      const group = AA_GROUP_MAP[letter] ?? ''
+                      const colors = AA_GROUP_COLORS[group]
+                      const isSelected = selectedSeqId === i + 1
+                      const tooltipText = `${letter} · pos ${i + 1}`
+
+                      if (isSelected) {
+                        return (
+                          <TooltipProvider key={i} delayDuration={0}>
+                            <Tooltip open>
+                              <TooltipTrigger asChild>
+                                <button
+                                  data-selected="true"
+                                  title={tooltipText}
+                                  onClick={() => focusSeqId(i + 1)}
+                                  className="w-[16px] h-[20px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
+                                  style={{
+                                    backgroundColor: colors.sel,
+                                    color: colors.text,
+                                    outline: `2px solid ${colors.ring}`,
+                                    outlineOffset: '1px',
+                                  }}
+                                >
+                                  {letter}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" sideOffset={6} className="text-[10px] font-medium">
+                                {tooltipText}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )
+                      }
+
                       return (
-                        <TooltipProvider key={i} delayDuration={0}>
-                          <Tooltip open>
-                            <TooltipTrigger asChild>
-                              <button
-                                data-selected="true"
-                                title={tooltipText}
-                                onClick={() => setFocusedResidue(null)}
-                                className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
-                                style={{
-                                  backgroundColor: colors.sel,
-                                  color: colors.text,
-                                  outline: `2px solid ${colors.ring}`,
-                                  outlineOffset: '1px',
-                                }}
-                              >
-                                {letter}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" sideOffset={6} className="text-[10px] font-medium">
-                              {tooltipText}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <button
+                          key={i}
+                          title={tooltipText}
+                          onClick={() => focusSeqId(i + 1)}
+                          className="w-[16px] h-[20px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
+                          style={{
+                            backgroundColor: colors.base,
+                            color: colors.text,
+                            outline: 'none',
+                            outlineOffset: '1px',
+                          }}
+                        >
+                          {letter}
+                        </button>
                       )
-                    }
-
-                    return (
-                      <button
-                        key={i}
-                        title={tooltipText}
-                        onClick={() => setFocusedResidue({ seqId: i + 1 })}
-                        className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
-                        style={{
-                          backgroundColor: colors.base,
-                          color: colors.text,
-                          outline: 'none',
-                          outlineOffset: '1px',
-                        }}
-                      >
-                        {letter}
-                      </button>
-                    )
-                  })}
+                    })}
+                  </div>
                 </div>
+
+                <button
+                  onClick={handleScrollRight}
+                  className="absolute right-0 z-10 h-[calc(100%-8px)] px-1.5 bg-gradient-to-l from-[#e4e4e7] via-[#e4e4e7] to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-zinc-500 hover:text-zinc-800"
+                  aria-label="Scroll right"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
               </div>
             ) : (
               /* Vista de edición (textarea) */

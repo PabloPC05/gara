@@ -67,6 +67,6 @@ export const useUIStore = create((set) => ({
   setViewerLighting: (lighting) => set({ viewerLighting: lighting }),
 
   // ── Residuo enfocado (FastaBar ↔ Visor 3D) ───────────────────────────
-  focusedResidue: null, // { seqId: number } | null
+  focusedResidue: null, // { seqId: number, proteinId?: string } | null
   setFocusedResidue: (residue) => set({ focusedResidue: residue }),
 }))

@@ -1,5 +1,5 @@
 import { Dna, ExternalLink, FlaskConical } from 'lucide-react'
-import { Badge } from './Badge'
+import { Badge } from '@/components/ui/badge'
 
 export function DrawerHeader({ protein }) {
   const meta = protein._raw?.protein_metadata
@@ -29,13 +29,20 @@ export function DrawerHeader({ protein }) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {uniprotId && (
-          <Badge tone="blue" label="UniProt" value={uniprotId} />
+          <Badge variant="outline" className="px-3 py-1 bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-black uppercase tracking-widest rounded-none gap-1.5 opacity-100 font-sans">
+            <span className="opacity-60">UniProt</span>
+            <span>{uniprotId}</span>
+          </Badge>
         )}
         {pdbId && (
-          <Badge tone="blue" label="PDB" value={pdbId} />
+          <Badge variant="outline" className="px-3 py-1 bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-black uppercase tracking-widest rounded-none gap-1.5 opacity-100 font-sans">
+            <span className="opacity-60">PDB</span>
+            <span>{pdbId}</span>
+          </Badge>
         )}
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-none border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+        <Badge
+          variant="outline"
+          className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-none gap-1.5 ${
             protein.source === 'mock'
               ? 'bg-violet-50 text-violet-700 border-violet-100'
               : 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -47,7 +54,7 @@ export function DrawerHeader({ protein }) {
             <ExternalLink className="h-3 w-3" strokeWidth={2.5} />
           )}
           {dataSource}
-        </span>
+        </Badge>
       </div>
     </header>
   )

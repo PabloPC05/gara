@@ -1,4 +1,4 @@
-import { Badge } from './Badge'
+import { Badge } from '@/components/ui/badge'
 import { BiologicalStatusCard } from './BiologicalStatusCard'
 import { PhysicalPropertiesCard } from './PhysicalPropertiesCard'
 import PaeHeatmap from '@/components/PaeHeatmap'
@@ -14,8 +14,14 @@ export function ComparisonColumn({ protein }) {
           <em>{protein.organism}</em> · {protein.length ?? '—'} aa
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <Badge tone="blue" label="UniProt" value={protein.uniprotId ?? '—'} />
-          <Badge tone="emerald" label="pLDDT" value={protein.plddtMean?.toFixed(1) ?? '—'} />
+          <Badge variant="outline" className="px-3 py-1 bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-black uppercase tracking-widest rounded-none gap-1.5 opacity-100 font-sans">
+            <span className="opacity-60">UniProt</span>
+            <span>{protein.uniprotId ?? '—'}</span>
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1 bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-black uppercase tracking-widest rounded-none gap-1.5 opacity-100 font-sans">
+            <span className="opacity-60">pLDDT</span>
+            <span>{protein.plddtMean?.toFixed(1) ?? '—'}</span>
+          </Badge>
         </div>
       </div>
       
