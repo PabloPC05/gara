@@ -9,7 +9,7 @@ export function HPCMonitor() {
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
       </div>
       <Activity className="h-3 w-3 text-emerald-400" />
-      <span className="text-[10px] font-semibold text-emerald-300">HPC Inactivo</span>
+      <span className="text-[10px] font-semibold text-emerald-300">HPC Activo</span>
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { API_BASE_URL } from './appConfig'
-import { validateApiResponse } from './apiSchema'
+import { API_BASE_URL } from '@/lib/appConfig';
+import { validateApiResponse } from '@/lib/apiSchema';
 
 const DEFAULT_POLL_INTERVAL_MS = 2000
 

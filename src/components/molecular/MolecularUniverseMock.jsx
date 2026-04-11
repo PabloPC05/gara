@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { use3DmolViewer } from '../../hooks/use3DmolViewer'
-import { buildHelixPdb } from '../../lib/helix'
-import { useProteinStore } from '../../stores/useProteinStore'
-import { MOCK_HELIX_LAYOUTS, buildMockProteinCatalog } from '../../data/mockProteinCatalog'
-import ViewerCanvas from './ViewerCanvas'
+
+import { use3DmolViewer } from '@/hooks/use3DmolViewer'
+import { buildHelixPdb } from '@/lib/helix'
+import { mockToUnified } from '@/lib/proteinAdapter'
+import { useProteinStore } from '@/stores/useProteinStore'
+import { MOCK_HELIX_LAYOUTS } from '@/data/mockProteinCatalog'
+import ViewerCanvas from '@/components/molecular/ViewerCanvas'
 
 // El visor mock renderiza las mismas hélices que publicamos al store
 // via `replaceCatalog`, así que ambos lados comparten ids y colores.
@@ -95,7 +97,10 @@ export default function MolecularUniverseMock({ background = '#ffffff' }) {
   // Bootstrap del catálogo mock en el store. Así drawer, sidebar y visor
   // leen todos de la misma fuente, igual que hará la API real.
   useEffect(() => {
-    replaceCatalog(buildMockProteinCatalog())
+    replaceCatalog(MOCK_HELIX_LAYOUTS.map((layout) => {
+      const pdbData = buildHelixPdb(layout.residues, layout.offset)
+      return mockToUnified(layout.id, layout.details, pdbData)
+    }))
   }, [replaceCatalog])
 
   // Ref en vivo para que los handlers de mouse (que se registran una sola vez)

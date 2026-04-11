@@ -1,12 +1,15 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "baseUrl": ".",
+    "jsx": "react",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [ "./src/*" ]
     },
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "allowJs": false
-  },
-  "include": ["src"],
-  "exclude": ["**/*.js"]
+  }
 }

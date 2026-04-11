@@ -1,13 +1,11 @@
-import React from 'react'
-import MolecularScene from './components/molecular/MolecularScene'
-import { CommandSidebar } from './components/CommandSidebar'
-import { ProteinDetailsDrawer } from './components/ProteinDetailsDrawer'
-import { SidebarProvider, SidebarInset } from './components/ui/sidebar'
-import { MenuBar } from './components/navigation/FloatingNavbar'
-import { ActivityBar } from './components/sidebar/ActivityBar'
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
+import MolecularScene from '@/components/molecular/MolecularScene'
+import { CommandSidebar } from '@/components/CommandSidebar'
+import { ProteinDetailsDrawer } from '@/components/ProteinDetailsDrawer'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+import { MenuBar } from '@/components/navigation/FloatingNavbar'
+import { ActivityBar } from '@/components/sidebar/ActivityBar'
 import useAuthStore from './stores/useAuthStore'
-
 export default function App() {
   const { initializeAuth } = useAuthStore();
 

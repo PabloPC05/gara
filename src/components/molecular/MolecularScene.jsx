@@ -1,6 +1,6 @@
-import MolecularUniverseMock from './MolecularUniverseMock'
-import MolecularViewer from './MolecularViewer'
-import { USE_MOCK } from '../../lib/appConfig'
+import MolecularUniverseMock from '@/components/molecular/MolecularUniverseMock'
+import MolecularViewer from '@/components/molecular/MolecularViewer'
+import { USE_MOCK } from '@/lib/appConfig'
 
 /**
  * Gate de modo. En desarrollo sin backend (`VITE_USE_MOCK=true`, default)
