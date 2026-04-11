@@ -75,7 +75,7 @@ function MenubarItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/menubar-item relative flex cursor-default items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-[variant=destructive]:text-rose-400 data-[variant=destructive]:focus:bg-rose-500/10 data-[variant=destructive]:focus:text-rose-300 data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group/menubar-item relative flex cursor-default items-center rounded-lg px-2.5 py-1 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-inset:pl-7 data-[variant=destructive]:text-rose-400 data-[variant=destructive]:focus:bg-rose-500/10 data-[variant=destructive]:focus:text-rose-300 data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -93,7 +93,7 @@ function MenubarCheckboxItem({
     <MenubarPrimitive.CheckboxItem
       data-slot="menubar-checkbox-item"
       className={cn(
-        "relative flex cursor-default items-center gap-1.5 rounded-lg py-2 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center rounded-lg py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -118,7 +118,7 @@ function MenubarRadioItem({
     <MenubarPrimitive.RadioItem
       data-slot="menubar-radio-item"
       className={cn(
-        "relative flex cursor-default items-center gap-1.5 rounded-lg py-2 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center rounded-lg py-1 pr-7 pl-5 text-[13px] outline-hidden select-none transition-colors focus:bg-white/8 focus:text-white data-disabled:pointer-events-none data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

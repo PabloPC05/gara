@@ -12,7 +12,10 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { AuthDialog } from "../auth/AuthDialog";
 import useAuthStore from "../../stores/useAuthStore";
-import { User, Dna, Settings, LogOut, Microscope, History, Hammer } from 'lucide-react';
+import { 
+  User, Dna, Settings, LogOut, Microscope, History, 
+  Hammer, CreditCard, Key, Database, Sliders 
+} from 'lucide-react';
 
 export function UserAccountModule() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
@@ -72,21 +75,21 @@ export function UserAccountModule() {
             
             <DropdownMenuGroup>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Editar Perfil")}
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Mi Perfil")}
               >
-                <User className="mr-2 h-4 w-4 text-slate-400 group-hover:text-blue-400 transition-colors" />
-                <span>Editar Perfil</span>
+                <User className="mr-2 h-4 w-4 text-slate-400 group-hover:text-[#e31e24] transition-colors" />
+                <span>Mi Perfil</span>
               </DropdownMenuItem>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
                 onClick={() => handleWipFeature("Mis Plegamientos")}
               >
                 <Dna className="mr-2 h-4 w-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
                 <span>Mis Plegamientos</span>
               </DropdownMenuItem>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
                 onClick={() => handleWipFeature("Historial de Trabajos")}  
               >
                 <History className="mr-2 h-4 w-4 text-slate-400 group-hover:text-purple-400 transition-colors" />
@@ -95,20 +98,50 @@ export function UserAccountModule() {
             </DropdownMenuGroup>
             
             <DropdownMenuSeparator className="bg-slate-800 my-1" />
+
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Gestión y Recursos
+            </DropdownMenuLabel>
             
             <DropdownMenuGroup>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
-                onClick={() => handleWipFeature("Configuración de UI")}
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Facturación y Planes")}
               >
-                <Settings className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-400 transition-colors" />
-                <span>Configuración de UI</span>
+                <CreditCard className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-400 transition-colors" />
+                <span>Facturación y Planes</span>
               </DropdownMenuItem>
               <DropdownMenuItem 
-                className="rounded-xl px-3 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Claves API")}
+              >
+                <Key className="mr-2 h-4 w-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                <span>Claves API</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Uso de Almacenamiento")}
+              >
+                <Database className="mr-2 h-4 w-4 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                <span>Almacenamiento</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            
+            <DropdownMenuSeparator className="bg-slate-800 my-1" />
+
+            <DropdownMenuGroup>
+              <DropdownMenuItem 
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
+                onClick={() => handleWipFeature("Ajustes de Sesión")}
+              >
+                <Sliders className="mr-2 h-4 w-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
+                <span>Ajustes de Sesión</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="rounded-xl px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-800 focus:bg-slate-800 transition-colors group outline-none"
                 onClick={() => handleWipFeature("Motor de Predicción")}  
               >
-                <Microscope className="mr-2 h-4 w-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                <Microscope className="mr-2 h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                 <span>Motor de Predicción</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
@@ -116,7 +149,7 @@ export function UserAccountModule() {
             <DropdownMenuSeparator className="bg-slate-800 my-1" />
             
             <DropdownMenuItem 
-              className="rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 hover:text-red-400 focus:text-red-400 transition-colors flex items-center outline-none"
+              className="rounded-xl px-3 py-2 text-sm font-medium text-red-500 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 hover:text-red-400 focus:text-red-400 transition-colors flex items-center outline-none"
               onClick={() => logOut()}
             >
               <LogOut className="mr-2 h-4 w-4" />
@@ -131,19 +164,19 @@ export function UserAccountModule() {
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
 
       <Dialog open={wipDialogOpen} onOpenChange={setWipDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border border-slate-700/50 shadow-2xl text-white rounded-2xl">
+        <DialogContent className="sm:max-w-md bg-[#18181b] border border-slate-700/50 shadow-2xl text-white rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <Hammer className="h-5 w-5 text-amber-500" />
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Hammer className="h-5 w-5 text-[#e31e24]" />
               Función en desarrollo
             </DialogTitle>
-            <DialogDescription className="text-slate-400 pt-2 text-sm leading-relaxed">
-              El apartado de <strong className="text-white font-medium">{wipTitle}</strong> todavía no está implementado en esta versión de demostración de LocalFold. ¡Pronto añadiremos esta característica!
+            <DialogDescription className="text-slate-400 pt-3 text-sm leading-relaxed">
+              El apartado de <strong className="text-white font-semibold">{wipTitle}</strong> todavía no está implementado en esta versión de LocalFold. ¡Pronto añadiremos esta característica profesional!
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-end mt-6">
             <button 
-              className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-blue-900/20"
+              className="bg-[#e31e24] hover:bg-[#c41a1f] active:bg-[#a3161a] text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-[#e31e24]/10"
               onClick={() => setWipDialogOpen(false)}
             >
               Entendido

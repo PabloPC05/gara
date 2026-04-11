@@ -3,20 +3,29 @@ import { use3DmolViewer } from '../../hooks/use3DmolViewer'
 import { useProteinStore } from '../../stores/useProteinStore'
 import ViewerCanvas from './ViewerCanvas'
 
-// Paleta cíclica para distinguir proteínas cuando hay varias en escena.
-const PROTEIN_COLORS = [
-  0x3b82f6, 0x10b981, 0xec4899, 0xf59e0b,
-  0x8b5cf6, 0x06b6d4, 0xef4444, 0x14b8a6,
-]
 const HALO_COLOR = 0xfde047
 
 // Radios de picking: idénticos al visor mock para coherencia UX.
 const PICK_BBOX_PADDING_PX = 10
 const PICK_NEAREST_FALLBACK_PX = 25
 
-const baseStyle = (color) => ({
-  cartoon: { color, opacity: 0.95, thickness: 0.6, style: 'edged' },
-  stick: { color, radius: 0.15, hidden: false },
+// Paleta AlphaFold pLDDT — consistente con MetricsDashboard.
+const PLDDT_VERY_HIGH = 0x0053d6
+const PLDDT_HIGH = 0x65cbf3
+const PLDDT_MEDIUM = 0xffdb13
+const PLDDT_LOW = 0xff7d45
+
+const plddtColor = (b) => {
+  if (b > 90) return PLDDT_VERY_HIGH
+  if (b > 70) return PLDDT_HIGH
+  if (b > 50) return PLDDT_MEDIUM
+  return PLDDT_LOW
+}
+const plddtColorForAtom = (atom) => plddtColor(atom?.b ?? 0)
+
+const baseStyle = () => ({
+  cartoon: { colorfunc: plddtColorForAtom, opacity: 0.95, thickness: 0.6, style: 'edged' },
+  stick: { colorfunc: plddtColorForAtom, radius: 0.15, hidden: false },
 })
 
 const haloStyle = {
@@ -25,7 +34,7 @@ const haloStyle = {
 }
 
 const applyEntryStyle = (entry, isActive) => {
-  entry.model.setStyle({}, baseStyle(entry.color))
+  entry.model.setStyle({}, baseStyle())
   if (isActive) entry.model.setStyle({}, haloStyle, true)
 }
 
@@ -98,24 +107,15 @@ function syncModels(viewer, modelMap, proteinsById, selectedIds) {
   }
 
   const ids = Object.keys(proteinsById)
-  let colorIndex = 0
   for (const id of ids) {
-    if (modelMap.has(id)) {
-      colorIndex++
-      continue
-    }
+    if (modelMap.has(id)) continue
     const protein = proteinsById[id]
-    if (!protein?.pdbData) {
-      colorIndex++
-      continue
-    }
-    const color = PROTEIN_COLORS[colorIndex % PROTEIN_COLORS.length]
+    if (!protein?.pdbData) continue
     const model = viewer.addModel(protein.pdbData, 'pdb')
-    const entry = { id, model, color }
+    const entry = { id, model }
     applyEntryStyle(entry, selectedIds.includes(id))
     modelMap.set(id, entry)
     dirty = true
-    colorIndex++
   }
 
   return dirty
@@ -140,7 +140,7 @@ export default function MolecularViewer({ background = '#ffffff' }) {
     proteinsByIdRef.current = proteinsById
   }, [proteinsById])
 
-  // Map id → { model, color } con los modelos 3Dmol activos.
+  // Map id → { model } con los modelos 3Dmol activos.
   const modelsRef = useRef(new Map())
   const dragStateRef = useRef(null)
 
