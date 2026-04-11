@@ -144,7 +144,11 @@ export function useMolstarMouseControls({
       drag.lastY = event.clientY;
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (event) => {
+      if (dragRef.current) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
       dragRef.current = null;
     };
 

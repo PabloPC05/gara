@@ -47,6 +47,7 @@ export function ProteinDetailsDrawer() {
   const defaultWidth = isComparison
     ? `min(${visibleCount * 22}rem, calc(100vw - 4rem))`
     : '26rem'
+    
   const widthStyle = customWidth ? { width: `${customWidth}px` } : { width: defaultWidth }
 
   // ── Resize horizontal de la sidebar derecha ──────────────────────────────
@@ -58,7 +59,7 @@ export function ProteinDetailsDrawer() {
 
     const startX = e.clientX
     const startWidth = drawer.getBoundingClientRect().width
-    const MIN_WIDTH = 200
+    const MIN_WIDTH = 280 // Aumentado el ancho mínimo para evitar colisiones
     const MAX_WIDTH = window.innerWidth * 0.8 // Max 80% of screen
 
     // Desactivar transiciones para arrastre fluido
@@ -70,18 +71,14 @@ export function ProteinDetailsDrawer() {
     document.body.style.userSelect = 'none'
 
     const onMouseMove = (ev) => {
-      // Al mover a la izquierda (menor X), el ancho aumenta
       const deltaX = startX - ev.clientX
       const newWidth = Math.min(Math.max(startWidth + deltaX, MIN_WIDTH), MAX_WIDTH)
       
-      // Actualizar el estilo del drawer directamente para rendimiento
       drawer.style.width = `${newWidth}px`
       
-      // Actualizar la variable CSS para que FastaBar se ajuste (si existe el contenedor)
       const provider = drawer.closest('.flex-1') || document.documentElement
       provider.style.setProperty('--details-sidebar-width', `${newWidth}px`)
 
-      // Actualizamos estado para que persista entre renders
       setCustomWidth(newWidth)
     }
 
@@ -98,7 +95,6 @@ export function ProteinDetailsDrawer() {
     document.addEventListener('mouseup', onMouseUp)
   }, [])
 
-  // Datos del primer proteína para la tira colapsada
   const firstProtein = proteins[0] ?? null
   const pdbFile      = firstProtein?._raw?.structural_data?.pdb_file ?? firstProtein?.pdbData
   const hasPdb       = !!pdbFile
@@ -120,13 +116,13 @@ export function ProteinDetailsDrawer() {
 
   return (
     <>
-      {/* ── Panel principal (ahora barra lateral anclada) ── */}
+      {/* ── Panel principal ── */}
       <div
         ref={drawerRef}
         data-state={detailsPanelOpen ? 'open' : 'closed'}
         style={widthStyle}
         className={[
-          'absolute right-0 top-0 bottom-0 z-50 flex min-h-0 flex-col overflow-hidden',
+          'absolute right-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden shrink-0',
           'border-l border-slate-200 bg-white shadow-xl',
           'outline-none',
           !customWidth && 'transition-all duration-300 ease-in-out',
@@ -135,40 +131,43 @@ export function ProteinDetailsDrawer() {
           !detailsPanelOpen ? 'pointer-events-none' : '',
         ].filter(Boolean).join(' ')}
       >
-        {/* Handle de redimensión — arrastra el borde izquierdo de la sidebar derecha */}
+        {/* Handle de redimensión */}
         <div
           onMouseDown={handleResizeStart}
-          className="absolute left-0 top-0 z-50 h-full w-1 cursor-col-resize hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors duration-150"
+          className="absolute left-0 top-0 z-50 h-full w-1.5 cursor-col-resize hover:bg-blue-500/50 transition-colors duration-150"
         />
-        {hasProteins ? (
-          <>
-            {isComparison ? (
-              <ComparisonBody proteins={proteins} visibleCount={visibleCount} />
-            ) : (
-              <DrawerBody protein={proteins[0]} />
-            )}
-          </>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/50">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-none bg-slate-100 text-slate-400">
-              <PanelRight className="h-8 w-8" />
+        
+        {/* Envoltorio con SCROLL VERTICAL (Aquí estaba el bug) */}
+        <div className="flex-1 w-full h-full overflow-y-auto overflow-x-hidden flex flex-col relative">
+          {hasProteins ? (
+            <>
+              {isComparison ? (
+                <ComparisonBody proteins={proteins} visibleCount={visibleCount} />
+              ) : (
+                <DrawerBody protein={proteins[0]} />
+              )}
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/50">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-none bg-slate-100 text-slate-400">
+                <PanelRight className="h-8 w-8" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">Sin selección</h3>
+              <p className="mt-1 text-xs text-slate-500 max-w-[180px]">
+                Seleccione una o varias proteínas en el panel izquierdo para ver sus propiedades y análisis.
+              </p>
             </div>
-            <h3 className="text-sm font-semibold text-slate-900">Sin selección</h3>
-            <p className="mt-1 text-xs text-slate-500 max-w-[180px]">
-              Seleccione una o varias proteínas en el panel izquierdo para ver sus propiedades y análisis.
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* ── Tira colapsada (ahora anclada al borde derecho) ── */}
+      {/* ── Tira colapsada ── */}
       {!detailsPanelOpen && (
         <div 
           onClick={() => setDetailsPanelOpen(true)}
           className="absolute right-0 top-0 bottom-0 z-50 flex flex-col items-center gap-2 w-10 border-l border-slate-200 bg-white shadow-sm py-4 px-1 cursor-pointer hover:bg-slate-50 transition-colors group"
           title="Expandir detalles"
         >
-          {/* Nombre de la proteína en vertical */}
           <div className="flex-1 flex items-center justify-center overflow-hidden">
             <span
               className="text-[10px] font-bold text-slate-400 group-hover:text-blue-500 tracking-wide select-none transition-colors"
@@ -182,13 +181,11 @@ export function ProteinDetailsDrawer() {
 
           {hasProteins && (
             <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-              {/* Botón Google Drive */}
               <ExportDriveButton 
                 proteinData={firstProtein} 
                 minimal={true} 
               />
 
-              {/* Botón descarga PDB */}
               <button
                 onClick={handleDownloadPdb}
                 disabled={!hasPdb}
@@ -199,7 +196,6 @@ export function ProteinDetailsDrawer() {
                 <Download className="h-3.5 w-3.5" strokeWidth={2.5} />
               </button>
 
-              {/* Botón deseleccionar */}
               <button
                 onClick={() => clearSelection()}
                 aria-label="Cerrar y deseleccionar"

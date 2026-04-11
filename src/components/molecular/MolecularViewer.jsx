@@ -125,8 +125,44 @@ export default function MolecularViewer() {
         }
       });
 
-      // Devolvemos la limpieza de la suscripción para cuando se desmonte
-      return () => hoverSub.unsubscribe();
+      // Suscripción al evento click de Mol*:
+      // Sincroniza la selección en el visor 3D con la FastaBar.
+      const clickSub = plugin.behaviors.interaction.click.subscribe(({ current }) => {
+        if (!current?.loci || current.loci.kind !== 'element-loci') {
+          setFocusedResidue(null);
+          return;
+        }
+        try {
+          const loc = StructureElement.Loci.getFirstLocation(current.loci);
+          if (!loc) return;
+          const seqId = getPreferredSeqId(loc);
+          if (seqId == null) return;
+
+          // Intentamos identificar a qué proteína pertenece la estructura clicada
+          const structure = current.loci.structure;
+          let proteinId = selectedIdsRef.current[0];
+
+          for (const [id, entry] of entriesRef.current.entries()) {
+            const entryStructure = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
+            if (entryStructure === structure) {
+              proteinId = id;
+              break;
+            }
+          }
+
+          if (proteinId) {
+            setFocusedResidue({ proteinId, seqId });
+          }
+        } catch (e) {
+          console.error('[Mol*] Error en click:', e);
+        }
+      });
+
+      // Devolvemos la limpieza de las suscripciones para cuando se desmonte
+      return () => {
+        hoverSub.unsubscribe();
+        clickSub.unsubscribe();
+      };
     },
     deps: [],
   });
