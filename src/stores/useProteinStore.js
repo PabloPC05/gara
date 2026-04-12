@@ -83,8 +83,15 @@ export const useProteinStore = create((set, get) => ({
   },
 
   toggleProteinSelection: (id) => {
-    const { activeProteinId } = get()
-    const newIds = activeProteinId === id ? [] : normalizeSelection(id)
+    const { selectedProteinIds } = get()
+    let newIds
+    if (selectedProteinIds.includes(id)) {
+      // Des-seleccionar: quitamos el ID de la lista
+      newIds = selectedProteinIds.filter((pid) => pid !== id)
+    } else {
+      // Seleccionar: añadimos el ID (normalizeSelection respeta el límite de 2)
+      newIds = normalizeSelection([...selectedProteinIds, id])
+    }
     set({ selectedProteinIds: newIds, activeProteinId: newIds[0] ?? null })
   },
 
@@ -103,9 +110,10 @@ function omitKey(obj, key) {
   return next
 }
 
-// Política single-selection: solo se mantiene el primer ID válido de la lista.
+// Política de selección: se admiten hasta 2 IDs válidos (modo comparación split-screen).
 function normalizeSelection(ids) {
   const list = Array.isArray(ids) ? ids : [ids]
-  const firstValidId = list.find((id) => typeof id === 'string' && id.length > 0)
-  return firstValidId ? [firstValidId] : []
+  return list
+    .filter((id) => typeof id === 'string' && id.length > 0)
+    .slice(0, 2)
 }

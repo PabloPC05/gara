@@ -123,7 +123,23 @@ export const useUIStore = create((set) => ({
   setViewerRepresentation: (repr) => set({ viewerRepresentation: repr }),
   setViewerLighting: (lighting) => set({ viewerLighting: lighting }),
 
-  // ── Residuo enfocado (FastaBar ↔ Visor 3D) ───────────────────────────
-  focusedResidue: null, // { seqId: number } | null
-  setFocusedResidue: (residue) => set({ focusedResidue: residue }),
+  // ── Residuo enfocado por proteína (FastaBar ↔ Visores 3D) ───────────────────
+  // En modo split-screen cada visor necesita su propio residuo enfocado independiente.
+  // Usamos un mapa { [proteinId]: { seqId } | null } en vez de un solo valor global.
+  focusedResidueByProtein: {}, // { [proteinId]: { seqId: number } | null }
+
+  setFocusedResidue: (proteinId, residue) =>
+    set((state) => ({
+      focusedResidueByProtein: {
+        ...state.focusedResidueByProtein,
+        [proteinId]: residue,
+      },
+    })),
+
+  clearFocusedResidue: (proteinId) =>
+    set((state) => {
+      const next = { ...state.focusedResidueByProtein }
+      delete next[proteinId]
+      return { focusedResidueByProtein: next }
+    }),
 }))

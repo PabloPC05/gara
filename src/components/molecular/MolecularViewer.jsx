@@ -33,27 +33,30 @@ import {
  *  - useMolstarMouseControls → eventos de ratón (picking, drag)
  *  - ViewerCanvas → capa visual React (grid, tooltip, overlay)
  */
-export default function MolecularViewer() {
+export default function MolecularViewer({ proteinId }) {
   // ── Store: proteínas ───────────────────────────────────────────────────────
   const proteinsById          = useProteinStore((s) => s.proteinsById);       // catálogo completo
-  const selectedProteinIds    = useProteinStore((s) => s.selectedProteinIds); // IDs actualmente visibles
   const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
+
+  // Array derivado de la prop — mantiene compatibilidad con syncStructures y el ref interno
+  const proteinIdArray = proteinId ? [proteinId] : [];
 
   // ── Store: UI ──────────────────────────────────────────────────────────────
   const viewerRepresentation = useUIStore((s) => s.viewerRepresentation); // cartoon | ball-and-stick | …
   const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
   const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
-  const focusedResidue       = useUIStore((s) => s.focusedResidue);       // residuo seleccionado desde FastaBar
+  const focusedResidueByProtein = useUIStore((s) => s.focusedResidueByProtein);
+  const focusedResidue          = proteinId ? focusedResidueByProtein[proteinId] : null;
 
   // ── Live refs ──────────────────────────────────────────────────────────────
   // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
   // de React, para evitar stale closures en efectos de larga duración.
-  const selectedIdsRef  = useRef(selectedProteinIds);
+  const selectedIdsRef  = useRef(proteinIdArray);
   const proteinsByIdRef = useRef(proteinsById);
   const reprTypeRef     = useRef(viewerRepresentation);
   const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
 
-  useEffect(() => { selectedIdsRef.current  = selectedProteinIds; }, [selectedProteinIds]);
+  useEffect(() => { selectedIdsRef.current  = proteinIdArray; }, [proteinId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
   useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
 
@@ -143,13 +146,13 @@ export default function MolecularViewer() {
     (async () => {
       const dirty = await syncStructures(
         plugin, entriesRef.current,
-        proteinsById, selectedProteinIds, reprTypeRef.current,
+        proteinsById, proteinIdArray, reprTypeRef.current,
       );
       if (cancelled) return;
       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
     })();
     return () => { cancelled = true; };
-  }, [proteinsById, selectedProteinIds, pluginRef]);
+  }, [proteinsById, proteinId, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Color de fondo del canvas (hex → Color de Mol*)
   useEffect(() => {
@@ -181,12 +184,11 @@ export default function MolecularViewer() {
       return;
     }
 
-    const activeId = selectedProteinIds[0];
-    if (!activeId) {
+    if (!proteinId) {
       setSelectedTooltip(null);
       return;
     }
-    const entry = entriesRef.current.get(activeId);
+    const entry = entriesRef.current.get(proteinId);
     if (!entry) {
       setSelectedTooltip(null);
       return;
@@ -206,7 +208,7 @@ export default function MolecularViewer() {
       chainId: StructureProperties.chain.auth_asym_id(loc),
       plddt: Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
     });
-  }, [focusedResidue, pluginRef, selectedProteinIds]);
+  }, [focusedResidue, pluginRef, proteinId]);
 
   // Esquema de iluminación (ao / flat / studio):
   // Aplica el preset completo, incluyendo oclusión ambiental, sombras,
@@ -218,17 +220,11 @@ export default function MolecularViewer() {
   }, [viewerLighting, pluginRef]);
 
   // ── 4. Props para ViewerCanvas ─────────────────────────────────────────────
-  const drawerOpen       = selectedProteinIds.length > 0;
-  const isComparison     = selectedProteinIds.length >= 2;
-  const visibleCount     = isComparison ? Math.min(selectedProteinIds.length, 4) : 1;
-
   return (
     <ViewerCanvas
       containerRef={containerRef}
       tooltip={tooltip}
-      drawerOpen={drawerOpen}
-      isComparison={isComparison}
-      drawerVisibleCount={visibleCount}
+      hasSelection={!!proteinId}
     >
       <div />
     </ViewerCanvas>

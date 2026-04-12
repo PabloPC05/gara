@@ -24,11 +24,12 @@ const AA_GROUP_COLORS = {
 }
 
 export function FastaBar() {
-  const activeProteinId = useProteinStore((s) => s.activeProteinId)
+  const selectedProteinIds = useProteinStore((s) => s.selectedProteinIds)
   const proteinsById = useProteinStore((s) => s.proteinsById)
   const activeTab = useUIStore((s) => s.activeTab)
   const detailsPanelOpen = useUIStore((s) => s.detailsPanelOpen)
-  const focusedResidue = useUIStore((s) => s.focusedResidue)
+  
+  const focusedResidueByProtein = useUIStore((s) => s.focusedResidueByProtein)
   const setFocusedResidue = useUIStore((s) => s.setFocusedResidue)
 
   const {
@@ -47,6 +48,8 @@ export function FastaBar() {
   const ignoreOpenRef = useRef(false)
   const sequenceContainerRef = useRef(null)
 
+  // Usamos el primer ID para el modo edición / default
+  const activeProteinId = selectedProteinIds[0] ?? null
   const protein = activeProteinId ? proteinsById[activeProteinId] : null
   const proteinSequence = protein?.sequence ?? ''
 
@@ -56,30 +59,50 @@ export function FastaBar() {
   const canProcess = isEditing ? isValidEntry(draftSequence) : isValidEntry(proteinSequence)
 
   // Navegación por teclado (←/→) entre residuos, no cíclica
+  // Opera sobre cualquier proteína que tenga un residuo actualmente seleccionado
   useEffect(() => {
-    if (isEditing || !proteinSequence) return
+    if (isEditing || selectedProteinIds.length === 0) return
     const handleKeyDown = (e) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      if (!focusedResidue) return
+      
+      // Buscamos cuál proteína tiene un residuo enfocado
+      let activePid = null;
+      let focusedSeqId = null;
+      for (const pid of selectedProteinIds) {
+        if (focusedResidueByProtein[pid]) {
+          activePid = pid;
+          focusedSeqId = focusedResidueByProtein[pid].seqId;
+          break;
+        }
+      }
+      
+      if (!activePid || !focusedSeqId) return;
+
+      const p = proteinsById[activePid];
+      if (!p || !p.sequence) return;
+
       e.preventDefault()
       const next = e.key === 'ArrowLeft'
-        ? Math.max(1, focusedResidue.seqId - 1)
-        : Math.min(proteinSequence.length, focusedResidue.seqId + 1)
-      if (next !== focusedResidue.seqId) setFocusedResidue({ seqId: next })
+        ? Math.max(1, focusedSeqId - 1)
+        : Math.min(p.sequence.length, focusedSeqId + 1)
+        
+      if (next !== focusedSeqId) {
+        setFocusedResidue(activePid, { seqId: next })
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEditing, proteinSequence, focusedResidue, setFocusedResidue])
+  }, [isEditing, selectedProteinIds, proteinsById, focusedResidueByProtein, setFocusedResidue])
 
   // Auto-scroll al residuo seleccionado en la barra
   useEffect(() => {
-    if (!focusedResidue || !sequenceContainerRef.current) return
+    if (!sequenceContainerRef.current) return
     const el = sequenceContainerRef.current.querySelector('[data-selected="true"]')
     el?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
-  }, [focusedResidue])
+  }, [focusedResidueByProtein])
 
   const leftOpen = activeTab !== null
-  const hasProtein = !!activeProteinId
+  const hasProtein = selectedProteinIds.length > 0
 
   const leftVal = leftOpen ? 'var(--sidebar-width, 22rem)' : '0rem'
   const rightVal = detailsPanelOpen
@@ -107,7 +130,8 @@ export function FastaBar() {
 
   const handleFocus = () => {
     setFocused(true)
-    setFocusedResidue(null)
+    // Limpiamos los focus en modo edición
+    selectedProteinIds.forEach(pid => setFocusedResidue(pid, null))
     if (!draftSequence && proteinSequence) {
       setDraftSequence(proteinSequence)
     }
@@ -160,62 +184,70 @@ export function FastaBar() {
               )}
             </div>
 
-            {!isEditing && proteinSequence ? (
-              /* Vista de residuos clicables (modo lectura) */
-              <div ref={sequenceContainerRef} className="overflow-x-auto overflow-y-hidden" style={{ maxHeight: '36px' }}>
-                <div className="flex items-center gap-px px-3 pb-1.5 pt-0.5 w-max select-none">
-                  {[...proteinSequence].map((letter, i) => {
-                    const group = AA_GROUP_MAP[letter] ?? ''
-                    const colors = AA_GROUP_COLORS[group]
-                    const isSelected = focusedResidue?.seqId === i + 1
-                    const tooltipText = `${letter} · pos ${i + 1}`
+            {!isEditing && hasProtein ? (
+              /* Vista de residuos clicables (modo lectura) para múltiples proteínas */
+              <div ref={sequenceContainerRef} className="overflow-x-auto overflow-y-hidden py-1 flex flex-col gap-1" style={{ maxHeight: selectedProteinIds.length > 1 ? '72px' : '36px' }}>
+                {selectedProteinIds.map((pid) => {
+                  const p = proteinsById[pid]
+                  if (!p || !p.sequence) return null
+                  const focusedResidue = focusedResidueByProtein[pid]
+                  
+                  return (
+                    <div key={pid} className="flex items-center gap-px px-3 w-max select-none">
+                      {[...p.sequence].map((letter, i) => {
+                        const group = AA_GROUP_MAP[letter] ?? ''
+                        const colors = AA_GROUP_COLORS[group]
+                        const isSelected = focusedResidue?.seqId === i + 1
+                        const tooltipText = `${letter} · pos ${i + 1} (${p.name || pid})`
 
-                    if (isSelected) {
-                      return (
-                        <TooltipProvider key={i} delayDuration={0}>
-                          <Tooltip open>
-                            <TooltipTrigger asChild>
-                              <button
-                                data-selected="true"
-                                title={tooltipText}
-                                onClick={() => setFocusedResidue(null)}
-                                className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
-                                style={{
-                                  backgroundColor: colors.sel,
-                                  color: colors.text,
-                                  outline: `2px solid ${colors.ring}`,
-                                  outlineOffset: '1px',
-                                }}
-                              >
-                                {letter}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" sideOffset={6} className="text-[10px] font-medium">
-                              {tooltipText}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )
-                    }
+                        if (isSelected) {
+                          return (
+                            <TooltipProvider key={i} delayDuration={0}>
+                              <Tooltip open>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    data-selected="true"
+                                    title={tooltipText}
+                                    onClick={() => setFocusedResidue(pid, null)}
+                                    className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
+                                    style={{
+                                      backgroundColor: colors.sel,
+                                      color: colors.text,
+                                      outline: `2px solid ${colors.ring}`,
+                                      outlineOffset: '1px',
+                                    }}
+                                  >
+                                    {letter}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" sideOffset={6} className="text-[10px] font-medium">
+                                  {tooltipText}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )
+                        }
 
-                    return (
-                      <button
-                        key={i}
-                        title={tooltipText}
-                        onClick={() => setFocusedResidue({ seqId: i + 1 })}
-                        className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
-                        style={{
-                          backgroundColor: colors.base,
-                          color: colors.text,
-                          outline: 'none',
-                          outlineOffset: '1px',
-                        }}
-                      >
-                        {letter}
-                      </button>
-                    )
-                  })}
-                </div>
+                        return (
+                          <button
+                            key={i}
+                            title={tooltipText}
+                            onClick={() => setFocusedResidue(pid, { seqId: i + 1 })}
+                            className="w-[14px] h-[18px] flex items-center justify-center text-[9px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
+                            style={{
+                              backgroundColor: colors.base,
+                              color: colors.text,
+                              outline: 'none',
+                              outlineOffset: '1px',
+                            }}
+                          >
+                            {letter}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               /* Vista de edición (textarea) */

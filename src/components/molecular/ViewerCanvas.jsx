@@ -1,6 +1,4 @@
 import { getAminoAcidInfo } from '../../utils/aminoAcids';
-import { useProteinStore } from '../../stores/useProteinStore';
-import { useUIStore } from '../../stores/useUIStore';
 
 const DOT_GRID_STYLE = {
   backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
@@ -22,25 +20,8 @@ function plddtColor(score) {
  *  - La rejilla de puntos se superpone sobre el canvas (pointer-events-none).
  *  - `tooltip` (opcional): { code, seqId, chainId, plddt, x, y }
  */
-export default function ViewerCanvas({ containerRef, tooltip, children }) {
+export default function ViewerCanvas({ containerRef, tooltip, hasSelection, children }) {
   const aminoInfo = tooltip ? getAminoAcidInfo(tooltip.code) : null;
-  const selectedProteinIds = useProteinStore((state) => state.selectedProteinIds);
-  const detailsPanelOpen = useUIStore((state) => state.detailsPanelOpen);
-  const isComparison = selectedProteinIds.length >= 2;
-  const hasSelection = selectedProteinIds.length > 0;
-  const visibleCount = Math.min(selectedProteinIds.length, 4);
-  const defaultOpenDrawerWidth = isComparison
-    ? `min(${visibleCount * 22}rem, calc(100vw - 4rem))`
-    : '26rem';
-
-  // El tooltip usa la misma variable CSS del drawer para moverse en vivo durante el resize.
-  let drawerOffset = '1.5rem'; // margen derecho por defecto (sidebar colapsado)
-  if (detailsPanelOpen && hasSelection) {
-    drawerOffset = 'calc(var(--details-sidebar-width, var(--details-sidebar-width-default)) + 3rem)';
-  } else if (hasSelection) {
-    // Si hay selección pero el panel está cerrado, dejamos espacio para la tira colapsada (40px)
-    drawerOffset = '4rem'; 
-  }
 
   return (
     <div
@@ -71,13 +52,9 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
       {/* Rejilla decorativa de puntos */}
       <div className="absolute inset-0 pointer-events-none opacity-15 z-10" style={DOT_GRID_STYLE} />
 
-      {/* Tooltip Equilibrado - Elevado a la derecha */}
+      {/* Tooltip — posicionado dentro del visor (absolute) para aislamiento en split-screen */}
       <div 
-        className={`pointer-events-none fixed bottom-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
-        style={{
-          right: drawerOffset,
-          '--details-sidebar-width-default': defaultOpenDrawerWidth,
-        }}
+        className={`pointer-events-none absolute bottom-6 right-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
       >
         {tooltip && aminoInfo && (
           <div className="rounded-none bg-white/95 border border-slate-200 p-4 shadow-2xl backdrop-blur-md min-w-[240px] flex flex-col gap-3">
