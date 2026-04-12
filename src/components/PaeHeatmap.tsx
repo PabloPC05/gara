@@ -102,6 +102,14 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
       const Plotly = await loadPlotly()
       if (!plotRef.current) return
 
+      // Measure the actual container width BEFORE rendering
+      const containerWidth = plotRef.current.parentElement?.clientWidth ?? 300
+      const plotWidth = Math.max(containerWidth, 100)
+      const margins = compact ? { l: 40, r: 10, t: 10, b: 30 } : { l: 60, r: 20, t: 10, b: 50 }
+      const plotHeight = compact
+        ? plotWidth - margins.l - margins.r + margins.t + margins.b // square plot area
+        : plotWidth * 0.8
+
       const maxVal = Math.max(dataMaxPae, MAX_PAE)
 
       const trace = {
@@ -126,8 +134,11 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
       }
 
       const layout = {
+        width: plotWidth,
+        height: plotHeight,
+        autosize: false,
         xaxis: {
-          title: { text: 'Posición del residuo', font: { size: 11, color: '#475569' } },
+          title: compact ? undefined : { text: 'Posición del residuo', font: { size: 11, color: '#475569' } },
           tickvals: tickPositions,
           ticktext: tickPositions.map((v: number) => String(v + 1)),
           tickfont: { size: 9, color: '#94a3b8' },
@@ -137,7 +148,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
           fixedrange: true,
         },
         yaxis: {
-          title: { text: 'Posición del residuo', font: { size: 11, color: '#475569' } },
+          title: compact ? undefined : { text: 'Posición del residuo', font: { size: 11, color: '#475569' } },
           tickvals: tickPositions,
           ticktext: tickPositions.map((v: number) => String(v + 1)),
           tickfont: { size: 9, color: '#94a3b8' },
@@ -147,9 +158,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
           fixedrange: true,
           autorange: 'reversed' as const,
         },
-        margin: compact
-          ? { l: 40, r: 10, t: 10, b: 30 }
-          : { l: 60, r: 20, t: 10, b: 50 },
+        margin: margins,
         paper_bgcolor: 'transparent',
         plot_bgcolor: 'transparent',
         font: { family: 'ui-monospace, monospace' },
@@ -163,7 +172,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
 
       const config = {
         displayModeBar: false,
-        responsive: true,
+        responsive: false, // we control the size explicitly
         scrollZoom: false,
         doubleClick: false,
       }
@@ -204,7 +213,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   }
 
   const plotDiv = (
-    <div className="flex items-center justify-center relative w-full h-full">
+    <div style={{ maxWidth: '100%', overflow: 'hidden', position: 'relative', width: '100%' }}>
       {status === 'loading' && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-none">
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
@@ -222,15 +231,14 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
       )}
       <div
         ref={plotRef}
-        className="px-2 " 
-        style={{ maxWidth: 200 }}
+        style={{ maxWidth: '100%', overflow: 'hidden', width: '100%' }}
       />
     </div>
   )
 
   if (compact) {
     return (
-      <div className="flex flex-col gap-1.5">
+      <div style={{ maxWidth: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
         {plotDiv}
         <div className="flex items-center justify-between px-1 text-[9px] text-slate-400">
           <span className="flex items-center gap-1">

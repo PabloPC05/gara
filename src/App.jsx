@@ -17,13 +17,8 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = initializeAuth()
-    
-    // Inicializar Google Workspace si el CLIENT_ID está disponible
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (clientId) {
-      initGoogleIdentity(clientId);
-    }
-    
+    if (clientId) initGoogleIdentity(clientId);
     return () => unsubscribe()
   }, [initializeAuth])
 
@@ -40,25 +35,26 @@ export default function App() {
       <header className="h-9 flex-shrink-0">
         <MenuBar />
       </header>
-      
+
       <div className="flex flex-1 min-h-0">
         <ActivityBar />
-        <div style={{ contain: 'layout paint' }} className="relative flex-1 h-full w-full">
-          <CommandSidebar />
-          
-          <div className="absolute right-0 top-0 bottom-0 z-50">
-            <ProteinDetailsDrawer />
+        <div style={{ contain: 'layout paint' }} className="relative flex flex-1 min-w-0 h-full">
+          {/* Left sidebar + viewer: takes remaining space */}
+          <div className="relative flex-1 min-w-0 h-full">
+            <CommandSidebar />
+            <SidebarInset
+              className="relative flex flex-col h-full w-full"
+              style={{ backgroundColor: viewerBackground }}
+            >
+              <FastaBar />
+              <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+                <MolecularScene background={viewerBackground} />
+              </div>
+            </SidebarInset>
           </div>
 
-          <SidebarInset
-            className="relative flex flex-col h-full w-full"
-            style={{ backgroundColor: viewerBackground }}
-          >
-            <FastaBar />
-            <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-              <MolecularScene background={viewerBackground} />
-            </div>
-          </SidebarInset>
+          {/* Right sidebar: fixed width, never grows */}
+          <ProteinDetailsDrawer />
         </div>
       </div>
     </SidebarProvider>
