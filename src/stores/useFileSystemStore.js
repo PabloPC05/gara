@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/**
- * FileSystem Store - Estilo VS Code
- * Soporta archivos .fasta (una proteína) y .session (conjunto de proteínas)
- */
 export const useFileSystemStore = create(
   persist(
     (set, get) => ({
@@ -12,7 +8,6 @@ export const useFileSystemStore = create(
         { id: 'root', name: 'BIOHACK_PROJECTS', type: 'folder', parentId: null, createdAt: Date.now() },
         { id: 'samples', name: 'examples', type: 'folder', parentId: 'root', createdAt: Date.now() },
         
-        // Sesión de ejemplo: Proteínas de transporte de Oxígeno
         { 
           id: 'session-1', 
           name: 'oxigen_transport.session', 
@@ -26,7 +21,6 @@ export const useFileSystemStore = create(
           ]
         },
 
-        // Archivo FASTA individual
         { 
           id: 'fasta-ins', 
           name: 'insulin_human.fasta', 
@@ -37,7 +31,6 @@ export const useFileSystemStore = create(
           data: { id: 'ins', name: 'Insulina Humana', sequence: 'GIVEQCCTSICSLYQLENYCNFVNQHLCGSHLVEALYLVCGERGFFYTPKT' }
         },
 
-        // Tu ejemplo: Hemoglobina y Quintina (Titina)
         { 
           id: 'session-musculo', 
           name: 'muscle_proteins.session', 
@@ -55,7 +48,6 @@ export const useFileSystemStore = create(
 
       setCurrentFolderId: (id) => set({ currentFolderId: id }),
       
-      // Añadir una nueva sesión basada en las proteínas actuales
       addSession: (name, proteins) => {
         const { currentFolderId, nodes } = get();
         const newSession = {
@@ -69,7 +61,6 @@ export const useFileSystemStore = create(
             id: p.id,
             name: p.name,
             sequence: p.sequence || p.fasta,
-            // Guardamos metadatos adicionales si existen para reconstruir mejor
             metadata: p.metadata || {}
           }))
         };
@@ -81,8 +72,44 @@ export const useFileSystemStore = create(
         nodes: [...state.nodes, { ...node, id: node.id || Math.random().toString(36).substr(2, 9), createdAt: Date.now() }] 
       })),
 
-      deleteNode: (id) => set((state) => ({
-        nodes: state.nodes.filter(n => n.id !== id)
+      addFolder: (name, parentId) => {
+        const { nodes } = get()
+        const id = `folder-${Date.now()}`
+        const folder = {
+          id,
+          name,
+          type: 'folder',
+          parentId: parentId || get().currentFolderId,
+          createdAt: Date.now(),
+        }
+        set({ nodes: [...nodes, folder] })
+        return id
+      },
+
+      addFileNode: (name, fileType, data, parentId) => {
+        const { nodes } = get()
+        const id = `file-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+        const file = {
+          id,
+          name,
+          type: 'file',
+          fileType,
+          parentId: parentId || get().currentFolderId,
+          createdAt: Date.now(),
+          data,
+        }
+        set({ nodes: [...nodes, file] })
+        return id
+      },
+
+      deleteNode: (id) => set((state) => {
+        const childIds = state.nodes.filter(n => n.parentId === id).map(n => n.id)
+        const allToDelete = [id, ...childIds]
+        return { nodes: state.nodes.filter(n => !allToDelete.includes(n.id)) }
+      }),
+
+      renameNode: (id, newName) => set((state) => ({
+        nodes: state.nodes.map(n => n.id === id ? { ...n, name: newName } : n)
       })),
 
       getChildren: (parentId) => get().nodes.filter(n => n.parentId === parentId),
@@ -95,7 +122,16 @@ export const useFileSystemStore = create(
           curr = get().nodes.find(n => n.id === curr.parentId);
         }
         return path;
-      }
+      },
+
+      uploadFileToWorkspace: (file, proteinData) => {
+        const name = file.name
+        const ext = name.split('.').pop().toLowerCase()
+        let fileType = 'fasta'
+        if (ext === 'pdb' || ext === 'cif' || ext === 'mmcif') fileType = 'structure'
+        else if (ext === 'session') fileType = 'session'
+        return get().addFileNode(name, fileType, proteinData)
+      },
     }),
     { name: 'biohack-workspace-v2' }
   )

@@ -85,6 +85,15 @@ export function FastaBar() {
     setFocusedResidue(null)
   }, [setFocusedResidue])
 
+  const scrollCarouselBy = useCallback((jump) => {
+    if (!api) return
+    const target = Math.max(
+      0,
+      Math.min(api.scrollSnapList().length - 1, api.selectedScrollSnap() + jump)
+    )
+    api.scrollTo(target)
+  }, [api])
+
   // Auto-scroll al residuo seleccionado o al final al escribir usando el API de Embla
   useEffect(() => {
     if (!api) return
@@ -107,8 +116,12 @@ export function FastaBar() {
 
     const handleWheel = (e) => {
       e.preventDefault()
-      const delta = Math.sign(e.deltaY || e.deltaX) * SCROLL_JUMP
-      api.scrollBy(delta)
+      const direction = Math.sign(e.deltaY || e.deltaX)
+      if (direction !== 0) {
+        const engine = api.internalEngine()
+        engine.scrollBody.useBaseFriction().useDuration(0)
+        engine.scrollTo.distance(direction * 40, false)
+      }
     }
 
     container.addEventListener('wheel', handleWheel, { passive: false })
@@ -138,22 +151,25 @@ export function FastaBar() {
     handlePickerOpenChange(next)
   }
 
+  const handleKeyDownCapture = (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (displaySequence && canSelect) {
+        e.preventDefault()
+        e.stopPropagation()
+        const currentId = selectedSeqId || 0
+        const next = e.key === 'ArrowLeft'
+          ? Math.max(1, currentId - 1)
+          : Math.min(displaySequence.length, currentId + 1)
+        if (next !== currentId) focusSeqId(next)
+      }
+    }
+  }
+
   const handleKeyDown = (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
 
     const key = e.key.toUpperCase()
     const validAA = 'GAVLIMFWPSTCYNQDEKRH'
-
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      if (!displaySequence || !canSelect) return
-      e.preventDefault()
-      const currentId = selectedSeqId || 0
-      const next = e.key === 'ArrowLeft'
-        ? Math.max(1, currentId - 1)
-        : Math.min(displaySequence.length, currentId + 1)
-      if (next !== currentId) focusSeqId(next)
-      return
-    }
 
     if (validAA.includes(key) && key.length === 1 && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
@@ -193,6 +209,7 @@ export function FastaBar() {
         tabIndex={0}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        onKeyDownCapture={handleKeyDownCapture}
         onKeyDown={handleKeyDown}
         className={[
           'relative z-10 outline-none h-14',
@@ -227,7 +244,7 @@ export function FastaBar() {
                 className="flex-1 flex items-stretch min-w-0 h-8"
               >
                 <button
-                  onClick={() => api?.scrollBy(-SCROLL_JUMP)}
+                  onClick={() => scrollCarouselBy(-SCROLL_JUMP)}
                   className="static translate-y-0 h-full w-8 rounded-none border-r border-zinc-200/50 hover:bg-zinc-200/50 shrink-0 flex items-center justify-center text-zinc-500 hover:text-zinc-700 transition-colors"
                   aria-label="Anterior"
                 >
@@ -256,7 +273,10 @@ export function FastaBar() {
                                 <button
                                   data-selected={isSelected && canSelect ? "true" : "false"}
                                   tabIndex={-1}
-                                  onClick={canSelect ? () => focusSeqId(i + 1) : undefined}
+                                  onClick={canSelect ? () => {
+                                    if (selectedSeqId === i + 1) clearFocusedResidue()
+                                    else focusSeqId(i + 1)
+                                  } : undefined}
                                   className={[
                                     "w-[18px] h-[22px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[3px] transition-all duration-100 shadow-sm",
                                     canSelect ? "cursor-pointer" : "cursor-default opacity-80"
@@ -283,7 +303,7 @@ export function FastaBar() {
                 </CarouselContent>
 
                 <button
-                  onClick={() => api?.scrollBy(SCROLL_JUMP)}
+                  onClick={() => scrollCarouselBy(SCROLL_JUMP)}
                   className="static translate-y-0 h-full w-10 rounded-none border-l border-zinc-200/50 hover:bg-zinc-200/50 shrink-0 flex items-center justify-center text-zinc-500 hover:text-zinc-700 transition-colors"
                   aria-label="Siguiente"
                 >

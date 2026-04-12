@@ -1,6 +1,7 @@
-import { Activity, Info } from 'lucide-react'
+import { Activity, Info, Waves } from 'lucide-react'
 import { SectionLabel } from './SectionLabel'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUIStore } from '../../stores/useUIStore'
 
 function getPlddtTone(value) {
   if (value >= 90) return { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', ring: 'bg-blue-500', label: 'Muy alta' }
@@ -25,6 +26,7 @@ export function ConfidenceSection({ protein }) {
             <PlddtCard value={plddtMean} />
           </div>
         )}
+        <FlexibilityToggle />
         {meanPae != null && (
           <div className="flex items-center gap-3 rounded-none border border-slate-200/60 bg-white/60 backdrop-blur-sm px-4 py-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-slate-100">
@@ -93,5 +95,40 @@ function PlddtCard({ value }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function FlexibilityToggle() {
+  const active = useUIStore((s) => s.flexibilityAnimating)
+  const toggle = useUIStore((s) => s.toggleFlexibilityAnimation)
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={`
+        flex items-center gap-2.5 w-full rounded-none border px-4 py-2.5
+        backdrop-blur-sm transition-all duration-200 cursor-pointer
+        ${active
+          ? 'border-orange-300 bg-orange-50 text-orange-700 shadow-sm'
+          : 'border-slate-200/60 bg-white/60 text-slate-500 hover:bg-white/80 hover:text-slate-700'
+        }
+      `}
+    >
+      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-none ${active ? 'bg-orange-100' : 'bg-slate-100'}`}>
+        <Waves className={`h-3.5 w-3.5 ${active ? 'text-orange-500' : 'text-slate-400'}`} strokeWidth={2} />
+      </div>
+      <div className="flex flex-1 items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-widest">
+          {active ? 'Simulación activa' : 'Simular Flexibilidad'}
+        </span>
+        {active && (
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+          </span>
+        )}
+      </div>
+    </button>
   )
 }

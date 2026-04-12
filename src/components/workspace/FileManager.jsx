@@ -11,12 +11,12 @@ import {
   setChonkyDefaults,
 } from 'chonky'
 import { ChonkyIconFA } from 'chonky-icon-fontawesome'
-import { useFileStore } from '@/stores/useFileStore'
+import { useFileSystemStore } from '@/stores/useFileSystemStore'
+import { useProteinStore } from '@/stores/useProteinStore'
+import { parseStructureFile, readTextFile } from '@/lib/importStructure'
 
-// Registrar iconos FontAwesome una sola vez (a nivel de módulo, no dentro del componente)
 setChonkyDefaults({ iconComponent: ChonkyIconFA })
 
-// ── Acción personalizada: subir archivo ──────────────────────────────────────
 const UploadAction = defineFileAction({
   id: 'upload_file',
   button: {
@@ -26,96 +26,139 @@ const UploadAction = defineFileAction({
   },
 })
 
-/**
- * FileManager — Explorador de archivos basado en Chonky.
- *
- * Integra:
- *  - Navegación por carpetas (doble clic)
- *  - Subida de archivos locales (.fasta, .pdb, .cif, .session)
- *  - Creación de carpetas
- *  - Eliminación de archivos/carpetas seleccionados
- *
- * Los datos provienen de useFileStore (mock). Para producción,
- * descomentar las llamadas Firebase dentro del store.
- */
+function buildChonkyFileMap(nodes, currentFolderId) {
+  const fileMap = {}
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      fileMap[node.id] = {
+        id: node.id,
+        name: node.name,
+        isDir: true,
+        parentId: node.parentId === 'root' ? null : node.parentId,
+        childrenIds: nodes.filter(n => n.parentId === node.id).map(n => n.id),
+        modDate: new Date(node.createdAt),
+      }
+    } else {
+      fileMap[node.id] = {
+        id: node.id,
+        name: node.name,
+        isDir: false,
+        parentId: node.parentId === 'root' ? null : node.parentId,
+        ext: node.name.split('.').pop(),
+        size: 0,
+        modDate: new Date(node.createdAt),
+      }
+    }
+  }
+  return fileMap
+}
+
 export function FileManager() {
   const fileInputRef = useRef(null)
 
-  const fileMap         = useFileStore((s) => s.fileMap)
-  const currentFolderId = useFileStore((s) => s.currentFolderId)
-  const navigateTo      = useFileStore((s) => s.navigateTo)
-  const uploadFile      = useFileStore((s) => s.uploadFile)
-  const createFolder    = useFileStore((s) => s.createFolder)
-  const deleteFiles     = useFileStore((s) => s.deleteFiles)
+  const nodes             = useFileSystemStore((s) => s.nodes)
+  const currentFolderId   = useFileSystemStore((s) => s.currentFolderId)
+  const setCurrentFolderId = useFileSystemStore((s) => s.setCurrentFolderId)
+  const addFolder         = useFileSystemStore((s) => s.addFolder)
+  const deleteNode        = useFileSystemStore((s) => s.deleteNode)
+  const uploadFileToWorkspace = useFileSystemStore((s) => s.uploadFileToWorkspace)
+  const upsertProtein     = useProteinStore((s) => s.upsertProtein)
+  const setActiveProteinId = useProteinStore((s) => s.setActiveProteinId)
 
-  // Archivos del directorio actual (memoizados para evitar re-renders de Chonky)
+  const chonkyFileMap = useMemo(() => buildChonkyFileMap(nodes, currentFolderId), [nodes, currentFolderId])
+
   const files = useMemo(() => {
-    const folder = fileMap[currentFolderId]
-    if (!folder?.childrenIds) return []
-    return folder.childrenIds.map((id) => fileMap[id] ?? null)
-  }, [fileMap, currentFolderId])
+    const folder = chonkyFileMap[currentFolderId]
+    if (!folder?.childrenIds) {
+      const root = chonkyFileMap['root']
+      if (!root?.childrenIds) return []
+      return root.childrenIds.map((id) => chonkyFileMap[id]).filter(Boolean)
+    }
+    return folder.childrenIds.map((id) => chonkyFileMap[id]).filter(Boolean)
+  }, [chonkyFileMap, currentFolderId])
 
-  // Cadena de breadcrumb desde root hasta la carpeta actual
   const folderChain = useMemo(() => {
     const chain = []
-    let curr = fileMap[currentFolderId]
+    let curr = chonkyFileMap[currentFolderId]
     while (curr) {
       chain.unshift(curr)
-      curr = curr.parentId ? fileMap[curr.parentId] : null
+      curr = curr.parentId ? chonkyFileMap[curr.parentId] : null
     }
     return chain
-  }, [fileMap, currentFolderId])
+  }, [chonkyFileMap, currentFolderId])
 
-  // ── Manejador central de acciones Chonky ────────────────────────────────────
   const handleFileAction = useCallback(
     (action) => {
       switch (action.id) {
-        // Abrir / navegar
         case ChonkyActions.OpenFiles.id: {
           const target =
             action.payload?.targetFile ?? action.payload?.files?.[0]
-          if (target?.isDir) navigateTo(target.id)
-          break
-        }
-
-        // Eliminar seleccionados (tecla Supr o botón Delete en toolbar)
-        case ChonkyActions.DeleteFiles.id: {
-          const toDelete = action.state.selectedFilesForAction
-          if (toDelete.length > 0) {
-            deleteFiles(toDelete.map((f) => f.id))
+          if (target?.isDir) setCurrentFolderId(target.id)
+          else if (target && !target.isDir) {
+            const node = nodes.find(n => n.id === target.id)
+            if (node?.data) {
+              if (node.fileType === 'fasta') {
+                upsertProtein(node.data)
+                setActiveProteinId(node.data.id)
+              } else if (node.fileType === 'session' && Array.isArray(node.data)) {
+                useProteinStore.getState().replaceCatalog(node.data)
+                setActiveProteinId(node.data[0]?.id)
+              }
+            }
           }
           break
         }
-
-        // Crear carpeta (Chonky abre un prompt nativo y pasa folderName)
-        case ChonkyActions.CreateFolder.id: {
-          const name = action.payload?.folderName?.trim()
-          if (name) createFolder(name)
+        case ChonkyActions.DeleteFiles.id: {
+          const toDelete = action.state.selectedFilesForAction
+          if (toDelete.length > 0) {
+            toDelete.forEach((f) => deleteNode(f.id))
+          }
           break
         }
-
-        // Subir archivo — abre el <input type="file"> nativo
+        case ChonkyActions.CreateFolder.id: {
+          const name = action.payload?.folderName?.trim()
+          if (name) addFolder(name, currentFolderId)
+          break
+        }
         case UploadAction.id: {
           fileInputRef.current?.click()
           break
         }
-
         default:
           break
       }
     },
-    [navigateTo, deleteFiles, createFolder],
+    [setCurrentFolderId, deleteNode, addFolder, currentFolderId, nodes, upsertProtein, setActiveProteinId],
   )
 
-  // Input nativo: cuando el usuario elige un archivo lo pasa al store
   const handleNativeUpload = useCallback(
-    (e) => {
+    async (e) => {
       const file = e.target.files?.[0]
-      if (file) uploadFile(file)
-      // Resetear para que el mismo archivo pueda subirse de nuevo
+      if (!file) { e.target.value = ''; return }
       e.target.value = ''
+
+      try {
+        const text = await readTextFile(file)
+        const name = file.name.toLowerCase()
+        if (name.endsWith('.fasta') || name.endsWith('.fas') || name.endsWith('.fa') || name.endsWith('.seq')) {
+          const lines = text.trim().split('\n')
+          const header = lines[0].replace(/^>\s*/, '').trim()
+          const sequence = lines.slice(1).join('').replace(/\s/g, '')
+          const proteinData = { id: `fasta-${Date.now()}`, name: header || file.name, sequence }
+          uploadFileToWorkspace(file, proteinData)
+          upsertProtein({ ...proteinData, source: 'local', organism: 'Unknown', length: sequence.length, structureData: null, structureFormat: null, pdbData: null, cifData: null, uniprotId: null, pdbId: null, plddtMean: null, meanPae: null, paeMatrix: [], biological: null, _raw: {} })
+          setActiveProteinId(proteinData.id)
+        } else if (name.endsWith('.pdb') || name.endsWith('.cif') || name.endsWith('.mmcif')) {
+          const protein = parseStructureFile(text, file.name)
+          uploadFileToWorkspace(file, protein)
+          upsertProtein(protein)
+          setActiveProteinId(protein.id)
+        }
+      } catch (err) {
+        console.error('Upload error:', err)
+      }
     },
-    [uploadFile],
+    [uploadFileToWorkspace, upsertProtein, setActiveProteinId],
   )
 
   return (
@@ -123,7 +166,6 @@ export function FileManager() {
       className="flex flex-col w-full h-full overflow-hidden rounded-lg border"
       style={{ backgroundColor: '#18181b', borderColor: '#27272a' }}
     >
-      {/* Input de sistema oculto para la subida de archivos */}
       <input
         ref={fileInputRef}
         type="file"
@@ -131,11 +173,6 @@ export function FileManager() {
         accept=".fasta,.pdb,.cif,.session,.txt"
         onChange={handleNativeUpload}
       />
-
-      {/*
-        FileBrowser darkMode activa el tema oscuro de MUI que usa Chonky.
-        El fondo exterior (#18181b / #27272a) lo aplica el div padre con Tailwind.
-      */}
       <FileBrowser
         files={files}
         folderChain={folderChain}
@@ -148,16 +185,9 @@ export function FileManager() {
         darkMode
         defaultFileViewActionId={ChonkyActions.EnableListView.id}
       >
-        {/* Breadcrumb de navegación */}
         <FileNavbar />
-
-        {/* Barra de herramientas: vistas, búsqueda, acciones */}
         <FileToolbar />
-
-        {/* Lista / grid de archivos */}
         <FileList />
-
-        {/* Menú contextual al hacer clic derecho */}
         <FileContextMenu />
       </FileBrowser>
     </div>

@@ -11,7 +11,8 @@ import { SearchSection } from './sidebar/SearchSection.jsx';
 import { AiSection } from './sidebar/AiSection.jsx';
 import { SettingsSection } from './sidebar/SettingsSection.jsx';
 
-// Extra UI components
+import { WorkspacePanel } from './sidebar/WorkspacePanel.jsx';
+
 import { AminoAcidPicker } from './sidebar/AminoAcidPicker.jsx';
 
 /**
@@ -20,6 +21,7 @@ import { AminoAcidPicker } from './sidebar/AminoAcidPicker.jsx';
 const TAB_COMPONENTS = {
   plus: PlusTabContent,
   files: FilesSection,
+  workspace: WorkspacePanel,
   search: SearchSection,
   ai: AiSection,
   settings: SettingsSection,

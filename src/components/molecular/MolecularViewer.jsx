@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMolstarViewer } from '../../hooks/useMolstarViewer';
 import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme';
+import { registerAnimatedPlddtTheme } from '../../hooks/animatedPlddtColorTheme';
+import { registerBiochemicalThemes } from '../../hooks/biochemicalColorThemes';
+import { useFlexibilityAnimation } from '../../hooks/useFlexibilityAnimation';
 import { useProteinStore } from '../../stores/useProteinStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { useMolstarStore } from '../../stores/useMolstarStore';
 import { useMolstarMouseControls } from '../../hooks/useMolstarMouseControls';
 import ViewerCanvas from './ViewerCanvas';
 
@@ -10,11 +14,13 @@ import ViewerCanvas from './ViewerCanvas';
 import { StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure.js';
 import { Script } from 'molstar/lib/mol-script/script.js';
 import { Color } from 'molstar/lib/mol-util/color/index.js';
+import { Vec3 } from 'molstar/lib/mol-math/linear-algebra.js';
 
 // --- Servicios y Configuración ---
 import {
   syncStructures,
   updateAllRepresentations,
+  updateAllColorSchemes,
   selectResidueBySeqId,
   clearResidueSelection,
   LIGHTING_PRESETS
@@ -50,9 +56,15 @@ export default function MolecularViewer() {
   // ── Store: UI ──────────────────────────────────────────────────────────────
   const viewerRepresentation = useUIStore((s) => s.viewerRepresentation); // cartoon | ball-and-stick | …
   const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
+  const viewerColorScheme    = useUIStore((s) => s.viewerColorScheme);   // alphafold-plddt | hydrophobicity | charge | size
   const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
   const focusedResidue       = useUIStore((s) => s.focusedResidue);       // residuo seleccionado desde FastaBar
   const setFocusedResidue    = useUIStore((s) => s.setFocusedResidue);
+  const pendingCamera        = useUIStore((s) => s.pendingCamera);         // camara pendiente del deep link
+  const clearPendingCamera   = useUIStore((s) => s.clearPendingCamera);
+
+  // ── Global Mol* ref (para exportar imagen, PDF, etc.) ────────────────────
+  const setMolstarPluginRef = useMolstarStore((s) => s.setPluginRef)
 
   // ── Live refs ──────────────────────────────────────────────────────────────
   // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
@@ -60,12 +72,14 @@ export default function MolecularViewer() {
   const selectedIdsRef  = useRef(selectedProteinIds);
   const proteinsByIdRef = useRef(proteinsById);
   const reprTypeRef     = useRef(viewerRepresentation);
+  const colorSchemeRef  = useRef(viewerColorScheme);
   const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
   const focusedResidueRef = useRef(focusedResidue); // Guarda el residuo actual para permitir el toggle
 
   useEffect(() => { selectedIdsRef.current  = selectedProteinIds; }, [selectedProteinIds]);
   useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
   useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
+  useEffect(() => { colorSchemeRef.current  = viewerColorScheme; }, [viewerColorScheme]);
   useEffect(() => { focusedResidueRef.current = focusedResidue; }, [focusedResidue]);
 
   // ── Tooltip de residuos (hover + selección) ───────────────────────────────
@@ -80,14 +94,10 @@ export default function MolecularViewer() {
   // setup() una sola vez tras la inicialización.
   const { containerRef, pluginRef } = useMolstarViewer({
     setup: async (plugin) => {
-      // Registrar el tema de color pLDDT de AlphaFold (azul→cyan→amarillo→naranja)
       registerAlphafoldPlddtTheme(plugin);
+      registerAnimatedPlddtTheme(plugin);
+      registerBiochemicalThemes(plugin);
 
-      // Configurar iluminación inicial y desactivar niebla/clipping para que
-      // la proteína se renderice completa sin desvanecerse en los extremos.
-      // - cameraFog: off         → sin niebla al fondo
-      // - cameraClipping.far: false → sin corte por plano far
-      // - cameraClipping.radius: 0  → plano near al máximo del campo de visión
       plugin.canvas3d?.setProps({
         ...LIGHTING_PRESETS.ao,
         renderer: {
@@ -99,7 +109,7 @@ export default function MolecularViewer() {
       // Cargar las proteínas que ya estuvieran seleccionadas al montar el componente
       const dirty = await syncStructures(
         plugin, entriesRef.current,
-        proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
+        proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current, colorSchemeRef.current,
       );
       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
 
@@ -206,7 +216,8 @@ export default function MolecularViewer() {
   });
 
   // ── 2. Controles de ratón ──────────────────────────────────────────────────
-  // Picking (clic sobre átomo → selecciona proteína) y drag (rota estructura).
+  useEffect(() => { setMolstarPluginRef(pluginRef) }, [pluginRef, setMolstarPluginRef])
+
   useMolstarMouseControls({
     containerRef,
     pluginRef,
@@ -214,10 +225,12 @@ export default function MolecularViewer() {
     selectedIdsRef,
     setSelectedProteinIds,
     setFocusedResidue: (val) => {
-      // Evitamos que este hook limpie la selección del estado al interactuar con el fondo
       if (val !== null) setFocusedResidue(val);
     },
   });
+
+  // ── 2b. Simulación de flexibilidad (color animado + micro-shake) ──────────
+  useFlexibilityAnimation(pluginRef, entriesRef);
 
   // ── 3. Efectos reactivos ───────────────────────────────────────────────────
 
@@ -231,13 +244,29 @@ export default function MolecularViewer() {
     (async () => {
       const dirty = await syncStructures(
         plugin, entriesRef.current,
-        proteinsById, selectedProteinIds, reprTypeRef.current,
+        proteinsById, selectedProteinIds, reprTypeRef.current, colorSchemeRef.current,
       );
       if (cancelled) return;
       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
     })();
     return () => { cancelled = true; };
   }, [proteinsById, selectedProteinIds, pluginRef]);
+
+  // Restaurar camara desde deep link (one-shot):
+  // Se ejecuta DESPUES del sync que resetea la camara, sobreescribiendola
+  // con la posicion guardada en el enlace compartido.
+  useEffect(() => {
+    const plugin = pluginRef.current;
+    if (!plugin || !pendingCamera || entriesRef.current.size === 0) return;
+    const c = plugin.canvas3d;
+    if (!c) return;
+    c.camera.setState({
+      position: Vec3.create(...pendingCamera.position),
+      target: Vec3.create(...pendingCamera.target),
+      up: Vec3.create(...pendingCamera.up),
+    });
+    clearPendingCamera();
+  }, [pendingCamera, pluginRef, selectedProteinIds]);
 
   // Color de fondo del canvas (hex → Color de Mol*)
   useEffect(() => {
@@ -253,6 +282,13 @@ export default function MolecularViewer() {
     if (!plugin || entriesRef.current.size === 0) return;
     updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error);
   }, [viewerRepresentation, pluginRef]);
+
+  // Esquema de coloración (pLDDT, hidrofobicidad, carga, tamaño)
+  useEffect(() => {
+    const plugin = pluginRef.current;
+    if (!plugin || entriesRef.current.size === 0) return;
+    updateAllColorSchemes(plugin, entriesRef.current, viewerColorScheme).catch(console.error);
+  }, [viewerColorScheme, pluginRef]);
 
   // Residuo enfocado desde la FastaBar:
   // Selecciona el residuo en Mol* y mueve la cámara hacia él con animación.

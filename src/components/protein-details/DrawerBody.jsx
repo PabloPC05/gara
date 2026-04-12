@@ -7,15 +7,21 @@ import {
   ExternalLink,
   FileText,
   FlaskConical,
+  Image,
+  FileType,
   Link2,
   Terminal,
 } from 'lucide-react'
 import PaeHeatmap from '@/components/PaeHeatmap'
+import { PiChargeWidget } from './PiChargeWidget'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ExportDriveButton from '../ExportDriveButton'
+import { useMolstarStore } from '../../stores/useMolstarStore'
+import { exportViewerImage } from '../../lib/exportImage'
+import { exportProteinPdf } from '../../lib/exportPdf'
 
 /* ─────────────── utilidades numéricas ─────────────── */
 
@@ -765,12 +771,43 @@ function ActionBar({ protein }) {
   const hasPdb = !!pdbFile
   const hasLogs = !!logs
   const [showLogs, setShowLogs] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const handleDownloadPdb = () => {
     if (!pdbFile) return
     const name =
       protein?._raw?.protein_metadata?.protein_name ?? protein?.name ?? 'protein'
     downloadBlob(pdbFile, `${safeFilename(name)}.pdb`, 'chemical/x-pdb')
+  }
+
+  const handleExportImage = async () => {
+    const pluginRef = useMolstarStore.getState().pluginRef
+    const plugin = pluginRef?.current
+    if (!plugin) return
+    setExporting(true)
+    try {
+      await exportViewerImage(plugin, {
+        format: 'png',
+        scale: 2,
+        transparent: false,
+        filename: protein?.name || null,
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    const pluginRef = useMolstarStore.getState().pluginRef
+    const plugin = pluginRef?.current
+    setExporting(true)
+    try {
+      await exportProteinPdf(protein, plugin)
+    } catch (e) {
+      console.error('PDF export error:', e)
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -821,6 +858,24 @@ VIABILIDAD BIOLÓGICA:
         </Button>
         <Button
           variant="outline"
+          disabled={exporting}
+          onClick={handleExportImage}
+          className="flex-1 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:border-slate-300 h-9 shrink-0 shadow-sm"
+        >
+          <Image className="h-3 w-3 mr-1.5" strokeWidth={2.5} />
+          {exporting ? '...' : 'Imagen'}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={exporting}
+          onClick={handleExportPdf}
+          className="flex-1 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:border-slate-300 h-9 shrink-0 shadow-sm"
+        >
+          <FileType className="h-3 w-3 mr-1.5" strokeWidth={2.5} />
+          {exporting ? '...' : 'PDF'}
+        </Button>
+        <Button
+          variant="outline"
           disabled={!hasLogs}
           onClick={() => setShowLogs((x) => !x)}
           className="flex-1 rounded-none border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:border-slate-300 h-9 shrink-0 shadow-sm"
@@ -860,6 +915,7 @@ export function DrawerBody({ protein }) {
           <IdentityPanel v={v} />
           <FunctionSection v={v} />
           <PhysicalProps v={v} />
+          <PiChargeWidget v={v} />
           <StructuralConfidence v={v} />
           <PaeHeatmapSection v={v} />
           <BioViability v={v} />

@@ -153,7 +153,7 @@ export function resolveStructurePayload(protein) {
  * @param {object} protein Datos de la proteína.
  * @param {string} reprType Tipo de representación (cartoon, ball-and-stick, etc).
  */
-export async function loadStructureEntry(plugin, id, protein, reprType) {
+export async function loadStructureEntry(plugin, id, protein, reprType, colorScheme) {
   const payload = resolveStructurePayload(protein);
   if (!payload) throw new Error(`No structural payload available for protein ${id}`);
   
@@ -175,7 +175,7 @@ export async function loadStructureEntry(plugin, id, protein, reprType) {
   // Representación visual
   const reprRef = await plugin.builders.structure.representation.addRepresentation(
     transformedRef,
-    { type: reprType ?? 'cartoon', typeParams: { alpha: 1, quality: 'high' }, color: 'alphafold-plddt' }
+    { type: reprType ?? 'cartoon', typeParams: { alpha: 1, quality: 'high' }, color: colorScheme ?? 'alphafold-plddt' }
   );
 
   // Centro geométrico para rotaciones locales
@@ -190,7 +190,7 @@ export async function loadStructureEntry(plugin, id, protein, reprType) {
  * Sincroniza las estructuras cargadas con la selección actual.
  * @returns {Promise<boolean>} True si ha habido cambios en la escena.
  */
-export async function syncStructures(plugin, entriesMap, proteinsById, selectedIds, reprType) {
+export async function syncStructures(plugin, entriesMap, proteinsById, selectedIds, reprType, colorScheme) {
   let dirty = false;
 
   // 1. Limpieza: Eliminar lo que ya no está seleccionado
@@ -213,7 +213,7 @@ export async function syncStructures(plugin, entriesMap, proteinsById, selectedI
     if (!protein) continue;
     
     try {
-      const entry = await loadStructureEntry(plugin, id, protein, reprType);
+      const entry = await loadStructureEntry(plugin, id, protein, reprType, colorScheme);
       entriesMap.set(id, entry);
       dirty = true;
     } catch (error) {
@@ -291,6 +291,23 @@ export async function updateAllRepresentations(plugin, entriesMap, reprType) {
         ...old,
         type: { name: reprType, params: old.type?.params ?? {} },
       }))
+      .commit();
+  }
+}
+
+export async function updateAllColorSchemes(plugin, entriesMap, colorScheme, customParams = null) {
+  for (const [, entry] of entriesMap) {
+    await plugin
+      .build()
+      .to(entry.reprRef.ref)
+      .update(StateTransforms.Representation.StructureRepresentation3D, (old) => {
+        const baseParams = old.colorTheme?.params ?? {};
+        const newParams = customParams ? { ...baseParams, ...customParams } : baseParams;
+        return {
+          ...old,
+          colorTheme: { name: colorScheme, params: newParams },
+        };
+      })
       .commit();
   }
 }

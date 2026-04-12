@@ -9,8 +9,8 @@ import {
   MenubarTrigger,
 } from '../ui/menubar'
 import { useUIStore } from '../../stores/useUIStore'
+import { BIOCHEMICAL_LENSES } from '../../utils/biochemistry'
 
-// Mapeamos los nombres de representación a los identificadores internos de Mol*
 const REPR_OPTIONS = [
   { label: 'Cartoon (Cintas)',       value: 'cartoon' },
   { label: 'Superficie (SAS)',        value: 'gaussian-surface' },
@@ -22,6 +22,8 @@ const REPR_OPTIONS = [
 export function StyleMenu() {
   const viewerRepresentation    = useUIStore((s) => s.viewerRepresentation)
   const setViewerRepresentation = useUIStore((s) => s.setViewerRepresentation)
+  const viewerColorScheme       = useUIStore((s) => s.viewerColorScheme)
+  const setViewerColorScheme    = useUIStore((s) => s.setViewerColorScheme)
 
   const itemClass = "text-xs text-slate-300 hover:bg-white/10 focus:bg-white/10 hover:text-white focus:text-white rounded-lg px-2 py-1.5 cursor-pointer"
   const activeItemClass = `${itemClass} text-white`
@@ -51,19 +53,21 @@ export function StyleMenu() {
         <MenubarSeparator className="bg-white/10 mx-1 my-1" />
 
         <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-          Coloración
+          Lentes Bioquímicas
         </MenubarLabel>
-        {/* Los modos de coloración son placeholders; el activo es siempre pLDDT */}
-        <MenubarItem className={`${itemClass} text-white`}>
-          <span className="flex-1">pLDDT (AlphaFold)</span>
-          <Check className="h-3 w-3 text-blue-400 shrink-0" />
-        </MenubarItem>
-        <MenubarItem className={itemClass}>Por Cadena</MenubarItem>
-        <MenubarItem className={itemClass}>Por B-Factor (Movilidad)</MenubarItem>
-        <MenubarItem className={itemClass}>Por Hidrofobicidad (Kyte-Doolittle)</MenubarItem>
-        <MenubarItem className={itemClass}>Por Estructura Secundaria</MenubarItem>
-        <MenubarItem className={itemClass}>Por Carga Electroestática</MenubarItem>
-        <MenubarItem className={itemClass}>Por Conservación Evolutiva</MenubarItem>
+
+        {BIOCHEMICAL_LENSES.map(({ id, label }) => (
+          <MenubarItem
+            key={id}
+            className={viewerColorScheme === id ? activeItemClass : itemClass}
+            onClick={() => setViewerColorScheme(id)}
+          >
+            <span className="flex-1">{label}</span>
+            {viewerColorScheme === id && (
+              <Check className="h-3 w-3 text-blue-400 shrink-0" />
+            )}
+          </MenubarItem>
+        ))}
 
         <MenubarSeparator className="bg-white/10 mx-1 my-1" />
 
