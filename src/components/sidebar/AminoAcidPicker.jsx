@@ -4,6 +4,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from '../ui/sheet.tsx'
 
 const AMINO_ACIDS = [
@@ -26,7 +27,7 @@ const AMINO_ACIDS = [
   { letter: 'E', abbr: 'Glu', name: 'Ácido glutámico',nameEn: 'Glutamate',      group: 'ac', formula: 'C₅H₉NO₄',     mw: 147.13, pI: 3.22, charge: -1, desc: 'Neurotransmisor excitatorio principal. Dona grupos amino en transaminación.' },
   { letter: 'K', abbr: 'Lys', name: 'Lisina',         nameEn: 'Lysine',        group: 'ba', formula: 'C₆H₁₄N₂O₂',   mw: 146.19, pI: 9.74, charge: +1, desc: 'Aminoácido básico esencial. Participa en uniones iónicas y metilación de histonas.' },
   { letter: 'R', abbr: 'Arg', name: 'Arginina',       nameEn: 'Arginine',      group: 'ba', formula: 'C₆H₁₄N₄O₂',   mw: 174.20, pI: 10.76,charge: +1, desc: 'Aminoácido más básico. Forma múltiples puentes de hidrógeno en sitios activos.' },
-  { letter: 'H', abbr: 'His', name: 'Histidina',      nameEn: 'Histidine',     group: 'ba', formula: 'C₆H₉N₃O₂',    mw: 155.16, pI: 7.59, charge: 0,  desc: 'Aminoácido con imidazol. Residuo catalítico clave por su pKa cercano a 7.' },
+  { letter: 'H', abbr: 'His', name: 'Histidina',      nameEn: 'Hisitidine',    group: 'ba', formula: 'C₆H₉N₃O₂',    mw: 155.16, pI: 7.59, charge: 0,  desc: 'Aminoácido con imidazol. Residuo catalítico clave por su pKa cercano a 7.' },
 ]
 
 const GROUP_STYLES = {
@@ -145,8 +146,8 @@ export function AminoAcidPicker({
           event.preventDefault()
           event.currentTarget.focus()
         }}
-        onPointerDownOutside={(event) => { event.preventDefault() }}
-        onInteractOutside={(event) => { event.preventDefault() }}
+        onPointerDownOutside={(event) => {}}
+        onInteractOutside={(event) => {}}
         onKeyDown={handleKeyDown}
         className="rounded-none border-t border-slate-100 bg-white p-0 shadow-2xl shadow-slate-900/10"
       >
@@ -160,8 +161,10 @@ export function AminoAcidPicker({
               <SheetTitle className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest leading-none">
                 Teclado de aminoácidos
               </SheetTitle>
+              <SheetDescription className="sr-only">
+                Selecciona aminoácidos para construir tu secuencia.
+              </SheetDescription>
             </SheetHeader>
-
           </div>
 
           <div className="flex items-center justify-between gap-3 mb-3">

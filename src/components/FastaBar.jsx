@@ -6,6 +6,11 @@ import { useAminoAcidBuilder } from '@/hooks/useAminoAcidBuilder'
 import { isValidEntry } from '@/hooks/useCommandEntries'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { AminoAcidPicker } from './sidebar/AminoAcidPicker'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/components/ui/carousel"
 
 // Mapa de letra → grupo bioquímico
 const AA_GROUP_MAP = {
@@ -26,6 +31,7 @@ const AA_GROUP_COLORS = {
 export function FastaBar() {
   const activeProteinId = useProteinStore((s) => s.activeProteinId)
   const proteinsById = useProteinStore((s) => s.proteinsById)
+  const selectedProteinIds = useProteinStore((s) => s.selectedProteinIds)
   const activeTab = useUIStore((s) => s.activeTab)
   const detailsPanelOpen = useUIStore((s) => s.detailsPanelOpen)
   const focusedResidue = useUIStore((s) => s.focusedResidue)
@@ -42,93 +48,88 @@ export function FastaBar() {
     setDraftSequence,
   } = useAminoAcidBuilder()
 
-  const [expanded, setExpanded] = useState(false)
   const [focused, setFocused] = useState(false)
+  const [api, setApi] = useState(null)
   const ignoreOpenRef = useRef(false)
-  const sequenceContainerRef = useRef(null)
+  const SCROLL_JUMP = 20
 
   const protein = activeProteinId ? proteinsById[activeProteinId] : null
   const proteinSequence = protein?.sequence ?? ''
+  const selectedProteinsCount = selectedProteinIds.reduce((count, id) => {
+    const selectedProtein = proteinsById[id]
+    return selectedProtein && selectedProtein.name ? count + 1 : count
+  }, 0)
+  const isComparison = selectedProteinsCount >= 2
+  const visibleCount = isComparison ? Math.min(selectedProteinsCount, 4) : 1
+  const defaultDetailsWidth = isComparison
+    ? `min(${visibleCount * 22}rem, calc(100vw - 4rem))`
+    : '26rem'
 
-  const isEditing = focused || isPickerOpen || draftSequence.length > 0
-  const inputValue = isEditing ? draftSequence : proteinSequence
-  const canProcess = isEditing ? isValidEntry(draftSequence) : isValidEntry(proteinSequence)
+  // Solo se puede seleccionar un residuo si hay una proteína cargada y no estamos en modo borrador
+  const canSelect = !!activeProteinId && draftSequence.length === 0
+
+  // Determinamos la secuencia a mostrar: borrador si existe, si no la de la proteína
+  const displaySequence = draftSequence.length > 0 ? draftSequence : proteinSequence
+  const canProcess = isValidEntry(displaySequence)
   const selectedSeqId =
     focusedResidue?.proteinId && focusedResidue.proteinId !== activeProteinId
       ? null
       : focusedResidue?.seqId ?? null
 
   const focusSeqId = useCallback((seqId) => {
-    if (!Number.isFinite(seqId)) return
-    if (activeProteinId) {
-      setFocusedResidue({ proteinId: activeProteinId, seqId })
-      return
-    }
-    setFocusedResidue({ seqId })
+    if (!Number.isFinite(seqId) || !activeProteinId) return
+    setFocusedResidue({ proteinId: activeProteinId, seqId })
   }, [activeProteinId, setFocusedResidue])
 
   const clearFocusedResidue = useCallback(() => {
     setFocusedResidue(null)
   }, [setFocusedResidue])
 
-  // Navegación por teclado (←/→) entre residuos, no cíclica
+  // Auto-scroll al residuo seleccionado o al final al escribir usando el API de Embla
   useEffect(() => {
-    if (isEditing || !proteinSequence) return
-    const handleKeyDown = (e) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      if (!focusedResidue) return
-      e.preventDefault()
-      const next = e.key === 'ArrowLeft'
-        ? Math.max(1, focusedResidue.seqId - 1)
-        : Math.min(proteinSequence.length, focusedResidue.seqId + 1)
-      if (next !== focusedResidue.seqId) focusSeqId(next)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEditing, proteinSequence, focusedResidue, focusSeqId])
+    if (!api) return
 
-  // Auto-scroll al residuo seleccionado en la barra
-  useEffect(() => {
-    if (!focusedResidue || !sequenceContainerRef.current) return
-    const el = sequenceContainerRef.current.querySelector('[data-selected="true"]')
-    el?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
-  }, [focusedResidue])
+    const timer = setTimeout(() => {
+      if (draftSequence.length > 0) {
+        api.scrollTo(displaySequence.length - 1)
+      } else if (selectedSeqId && canSelect) {
+        api.scrollTo(selectedSeqId - 1)
+      }
+    }, 50)
 
-  // Scroll horizontal con rueda del ratón
+    return () => clearTimeout(timer)
+  }, [api, selectedSeqId, displaySequence.length, draftSequence.length, canSelect])
+
   useEffect(() => {
-    const el = sequenceContainerRef.current
-    if (!el) return
+    if (!api) return
+    const container = api.containerNode()
+    if (!container) return
 
     const handleWheel = (e) => {
-      if (e.deltaY !== 0) {
-        e.preventDefault()
-        el.scrollLeft += e.deltaY
-      }
+      e.preventDefault()
+      const delta = Math.sign(e.deltaY || e.deltaX) * SCROLL_JUMP
+      api.scrollBy(delta)
     }
 
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
-  }, [isEditing, proteinSequence])
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [api])
 
   const leftOpen = activeTab !== null
-  const hasProtein = !!activeProteinId
 
   const leftVal = leftOpen ? 'var(--sidebar-width, 22rem)' : '0rem'
   const rightVal = detailsPanelOpen
-    ? 'var(--details-sidebar-width, 26rem)'
-    : hasProtein
-      ? '2.5rem'
-      : '0rem'
+    ? `var(--details-sidebar-width, ${defaultDetailsWidth})`
+    : 'var(--details-sidebar-collapsed-width, 2.5rem)'
 
-  const toggleKeyboard = () => {
+  const toggleKeyboard = (e) => {
+    e.stopPropagation()
     if (isPickerOpen) {
       ignoreOpenRef.current = true
       handlePickerOpenChange(false)
-      setExpanded(false)
       setTimeout(() => { ignoreOpenRef.current = false }, 300)
     } else {
       handlePickerOpenChange(true)
-      setExpanded(true)
     }
   }
 
@@ -137,40 +138,50 @@ export function FastaBar() {
     handlePickerOpenChange(next)
   }
 
-  const handleFocus = () => {
-    setFocused(true)
-    clearFocusedResidue()
-    if (!draftSequence && proteinSequence) {
-      setDraftSequence(proteinSequence)
-    }
-  }
-
-  const handleBlur = () => {
-    setFocused(false)
-  }
-
-  const handleChange = (e) => {
-    setDraftSequence(e.target.value.toUpperCase().replace(/[^GAVLIMFWPSTCYNQDEKRH]/g, ''))
-  }
-
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+    const key = e.key.toUpperCase()
+    const validAA = 'GAVLIMFWPSTCYNQDEKRH'
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (!displaySequence || !canSelect) return
       e.preventDefault()
-      if (canProcess) {
+      const currentId = selectedSeqId || 0
+      const next = e.key === 'ArrowLeft'
+        ? Math.max(1, currentId - 1)
+        : Math.min(displaySequence.length, currentId + 1)
+      if (next !== currentId) focusSeqId(next)
+      return
+    }
+
+    if (validAA.includes(key) && key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      if (draftSequence.length === 0 && proteinSequence.length > 0) {
+        setDraftSequence(proteinSequence + key)
+      } else {
+        appendLetter(key)
+      }
+      clearFocusedResidue()
+      return
+    }
+
+    if (e.key === 'Backspace') {
+      e.preventDefault()
+      if (draftSequence.length === 0 && proteinSequence.length > 0) {
+        setDraftSequence(proteinSequence.slice(0, -1))
+      } else {
+        deleteLastLetter()
+      }
+      clearFocusedResidue()
+      return
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (canProcess && draftSequence.length > 0) {
         handleConfirmPicker()
       }
-    }
-  }
-
-  const handleScrollLeft = () => {
-    if (sequenceContainerRef.current) {
-      sequenceContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' })
-    }
-  }
-
-  const handleScrollRight = () => {
-    if (sequenceContainerRef.current) {
-      sequenceContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' })
     }
   }
 
@@ -178,8 +189,13 @@ export function FastaBar() {
     <>
       <div
         data-slot="fasta-bar"
+        data-testid="fasta-bar"
+        tabIndex={0}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={handleKeyDown}
         className={[
-          'relative z-10',
+          'relative z-10 outline-none h-14',
           'border-b transition-all duration-200',
           focused
             ? 'bg-white/95 border-zinc-400'
@@ -191,56 +207,64 @@ export function FastaBar() {
           transition: 'margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out',
         }}
       >
-        <div className="flex items-stretch">
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center gap-2 px-3 pt-1.5 pb-0">
+        <div className="flex h-full w-full">
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-2 pb-1 px-3">
               <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">
-                {focused ? 'Editando' : 'Secuencia'}
+                {draftSequence.length > 0 ? 'Editando Borrador' : 'Secuencia'}
               </span>
-              {inputValue.length > 0 && (
+              {displaySequence.length > 0 && (
                 <span className="text-[9px] text-zinc-400">
-                  {inputValue.length} aa
+                  {displaySequence.length} aa
                 </span>
               )}
             </div>
 
-            {!isEditing && proteinSequence ? (
-              /* Vista de residuos clicables (modo lectura) */
-              <div className="relative group flex items-center w-full">
+            <div className="flex items-center w-full bg-black/5 border-y border-zinc-200/50">
+              <Carousel
+                setApi={setApi}
+                opts={{ align: "start", dragFree: true }}
+                className="flex-1 flex items-stretch min-w-0 h-8"
+              >
                 <button
-                  onClick={handleScrollLeft}
-                  className="absolute left-0 z-10 h-[calc(100%-8px)] px-1.5 bg-gradient-to-r from-[#e4e4e7] via-[#e4e4e7] to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-zinc-500 hover:text-zinc-800"
-                  aria-label="Scroll left"
+                  onClick={() => api?.scrollBy(-SCROLL_JUMP)}
+                  className="static translate-y-0 h-full w-8 rounded-none border-r border-zinc-200/50 hover:bg-zinc-200/50 shrink-0 flex items-center justify-center text-zinc-500 hover:text-zinc-700 transition-colors"
+                  aria-label="Anterior"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
-
-                <div
-                  ref={sequenceContainerRef}
-                  className="overflow-x-auto overflow-y-hidden w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                  style={{ maxHeight: '36px' }}
-                >
-                  <div className="flex items-center gap-1.5 px-6 pb-1.5 pt-0.5 w-max select-none">
-                    {[...proteinSequence].map((letter, i) => {
+                
+                <CarouselContent className="ml-0 flex-1 w-full h-full items-center gap-1.5 px-3">
+                  {displaySequence.length === 0 ? (
+                    <CarouselItem className="basis-auto pl-0">
+                      <span className="text-[11px] text-zinc-400 italic h-full flex items-center">
+                        Haz clic aquí para empezar a escribir...
+                      </span>
+                    </CarouselItem>
+                  ) : (
+                    [...displaySequence].map((letter, i) => {
                       const group = AA_GROUP_MAP[letter] ?? ''
                       const colors = AA_GROUP_COLORS[group]
                       const isSelected = selectedSeqId === i + 1
                       const tooltipText = `${letter} · pos ${i + 1}`
 
-                      if (isSelected) {
-                        return (
-                          <TooltipProvider key={i} delayDuration={0}>
-                            <Tooltip open>
+                      return (
+                        <CarouselItem key={i} className="basis-auto pl-0 shrink-0">
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip open={isSelected && canSelect}>
                               <TooltipTrigger asChild>
                                 <button
-                                  data-selected="true"
-                                  title={tooltipText}
-                                  onClick={() => focusSeqId(i + 1)}
-                                  className="w-[16px] h-[20px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
+                                  data-selected={isSelected && canSelect ? "true" : "false"}
+                                  tabIndex={-1}
+                                  onClick={canSelect ? () => focusSeqId(i + 1) : undefined}
+                                  className={[
+                                    "w-[18px] h-[22px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[3px] transition-all duration-100 shadow-sm",
+                                    canSelect ? "cursor-pointer" : "cursor-default opacity-80"
+                                  ].join(' ')}
                                   style={{
-                                    backgroundColor: colors.sel,
+                                    backgroundColor: (isSelected && canSelect) ? colors.sel : colors.base,
                                     color: colors.text,
-                                    outline: `2px solid ${colors.ring}`,
+                                    outline: (isSelected && canSelect) ? `2px solid ${colors.ring}` : 'none',
                                     outlineOffset: '1px',
                                   }}
                                 >
@@ -252,76 +276,35 @@ export function FastaBar() {
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        )
-                      }
-
-                      return (
-                        <button
-                          key={i}
-                          title={tooltipText}
-                          onClick={() => focusSeqId(i + 1)}
-                          className="w-[16px] h-[20px] flex items-center justify-center text-[10px] font-mono font-bold rounded-[2px] transition-all duration-100 cursor-pointer"
-                          style={{
-                            backgroundColor: colors.base,
-                            color: colors.text,
-                            outline: 'none',
-                            outlineOffset: '1px',
-                          }}
-                        >
-                          {letter}
-                        </button>
+                        </CarouselItem>
                       )
-                    })}
-                  </div>
-                </div>
+                    })
+                  )}
+                </CarouselContent>
 
                 <button
-                  onClick={handleScrollRight}
-                  className="absolute right-0 z-10 h-[calc(100%-8px)] px-1.5 bg-gradient-to-l from-[#e4e4e7] via-[#e4e4e7] to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-zinc-500 hover:text-zinc-800"
-                  aria-label="Scroll right"
+                  onClick={() => api?.scrollBy(SCROLL_JUMP)}
+                  className="static translate-y-0 h-full w-10 rounded-none border-l border-zinc-200/50 hover:bg-zinc-200/50 shrink-0 flex items-center justify-center text-zinc-500 hover:text-zinc-700 transition-colors"
+                  aria-label="Siguiente"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
-              </div>
-            ) : (
-              /* Vista de edición (textarea) */
-              <div
-                className="overflow-y-auto transition-all duration-300 ease-in-out"
-                style={{ maxHeight: expanded ? '50vh' : '36px' }}
+              </Carousel>
+              
+              <button
+                onClick={toggleKeyboard}
+                className={[
+                  'shrink-0 flex items-center justify-center w-10 h-8 border-l border-zinc-200/50 transition-colors rounded-none',
+                  isPickerOpen
+                    ? 'text-zinc-600 bg-zinc-200/60 hover:bg-zinc-300/60'
+                    : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-300/40',
+                ].join(' ')}
+                title={isPickerOpen ? 'Cerrar teclado' : 'Abrir teclado de aminoácidos'}
               >
-                <textarea
-                  value={inputValue}
-                  onChange={handleChange}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Introduce una secuencia de aminoácidos"
-                  spellCheck={false}
-                  className={[
-                    'w-full resize-none bg-transparent px-3 pb-1.5 pt-0.5 text-[11px] font-mono leading-relaxed',
-                    'whitespace-pre-wrap break-all outline-none select-text',
-                    focused ? 'text-zinc-800' : 'text-zinc-600',
-                    !focused && !inputValue ? 'italic' : '',
-                  ].join(' ')}
-                  style={{ minHeight: '20px' }}
-                  rows={1}
-                />
-              </div>
-            )}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/></svg>
+              </button>
+            </div>
           </div>
-
-          <button
-            onClick={toggleKeyboard}
-            className={[
-              'shrink-0 flex items-center justify-center w-9 border-l transition-colors',
-              isPickerOpen
-                ? 'text-zinc-600 bg-zinc-200/60 border-zinc-400 hover:bg-zinc-300/60'
-                : 'text-zinc-400 border-zinc-300/60 hover:text-zinc-600 hover:bg-zinc-300/40',
-            ].join(' ')}
-            title={isPickerOpen ? 'Cerrar teclado' : 'Abrir teclado de aminoácidos'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/></svg>
-          </button>
         </div>
       </div>
 

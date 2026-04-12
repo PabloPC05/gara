@@ -165,7 +165,8 @@ export function ProteinDetailsDrawer() {
       {!detailsPanelOpen && (
         <div 
           onClick={() => setDetailsPanelOpen(true)}
-          className="absolute right-0 top-0 bottom-0 z-50 flex flex-col items-center gap-2 w-10 border-l border-slate-200 bg-white shadow-sm py-4 px-1 cursor-pointer hover:bg-slate-50 transition-colors group"
+          className="absolute right-0 top-0 bottom-0 z-50 flex flex-col items-center gap-2 border-l border-slate-200 bg-white shadow-sm py-4 px-1 cursor-pointer hover:bg-slate-50 transition-colors group"
+          style={{ width: 'var(--details-sidebar-collapsed-width, 2.5rem)' }}
           title="Expandir detalles"
         >
           <div className="flex-1 flex items-center justify-center overflow-hidden">

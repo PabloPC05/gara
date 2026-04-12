@@ -7,7 +7,8 @@ import { useMolstarMouseControls } from '../../hooks/useMolstarMouseControls';
 import ViewerCanvas from './ViewerCanvas';
 
 // --- Importaciones Mol* ---
-import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure.js';
+import { StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure.js';
+import { Script } from 'molstar/lib/mol-script/script.js';
 import { Color } from 'molstar/lib/mol-util/color/index.js';
 
 // --- Servicios y Configuración ---
@@ -60,10 +61,12 @@ export default function MolecularViewer() {
   const proteinsByIdRef = useRef(proteinsById);
   const reprTypeRef     = useRef(viewerRepresentation);
   const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
+  const focusedResidueRef = useRef(focusedResidue); // Guarda el residuo actual para permitir el toggle
 
   useEffect(() => { selectedIdsRef.current  = selectedProteinIds; }, [selectedProteinIds]);
   useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
   useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
+  useEffect(() => { focusedResidueRef.current = focusedResidue; }, [focusedResidue]);
 
   // ── Tooltip de residuos (hover + selección) ───────────────────────────────
   // - hoverTooltip: prioriza lo que está bajo el cursor en tiempo real.
@@ -129,7 +132,36 @@ export default function MolecularViewer() {
       // Sincroniza la selección en el visor 3D con la FastaBar.
       const clickSub = plugin.behaviors.interaction.click.subscribe(({ current }) => {
         if (!current?.loci || current.loci.kind !== 'element-loci') {
-          setFocusedResidue(null);
+          // Al hacer clic o arrastrar en el vacío, Mol* a menudo limpia el foco visual.
+          // Para evitar que se deseleccione gráficamente, re-aplicamos el foco
+          // visual (SIN mover la cámara) si había un residuo seleccionado.
+          const currentFocused = focusedResidueRef.current;
+          if (currentFocused && entriesRef.current.has(currentFocused.proteinId)) {
+            setTimeout(() => {
+              if (!pluginRef.current) return;
+              const entry = entriesRef.current.get(currentFocused.proteinId);
+              if (!entry) return;
+              const structure = pluginRef.current.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
+              if (!structure) return;
+              try {
+                const sel = Script.getStructureSelection(
+                  (Q) => Q.struct.generator.atomGroups({
+                    'residue-test': Q.core.rel.eq([
+                      Q.struct.atomProperty.macromolecular.label_seq_id(),
+                      currentFocused.seqId,
+                    ]),
+                    'group-by': Q.struct.atomProperty.macromolecular.residueKey(),
+                  }),
+                  structure
+                );
+                const loci = StructureSelection.toLociWithSourceUnits(sel);
+                pluginRef.current.managers.interactivity.lociSelects.selectOnly({ loci });
+                pluginRef.current.managers.structure.focus.setFromLoci(loci);
+              } catch (e) {
+                console.error('[Mol*] Error re-aplicando selección:', e);
+              }
+            }, 30);
+          }
           return;
         }
         try {
@@ -151,7 +183,13 @@ export default function MolecularViewer() {
           }
 
           if (proteinId) {
-            setFocusedResidue({ proteinId, seqId });
+            const currentFocused = focusedResidueRef.current;
+            // Si hacemos clic en el mismo residuo que ya está seleccionado, lo deseleccionamos
+            if (currentFocused && currentFocused.proteinId === proteinId && currentFocused.seqId === seqId) {
+              setFocusedResidue(null);
+            } else {
+              setFocusedResidue({ proteinId, seqId });
+            }
           }
         } catch (e) {
           console.error('[Mol*] Error en click:', e);
@@ -175,7 +213,10 @@ export default function MolecularViewer() {
     entriesRef,
     selectedIdsRef,
     setSelectedProteinIds,
-    setFocusedResidue,
+    setFocusedResidue: (val) => {
+      // Evitamos que este hook limpie la selección del estado al interactuar con el fondo
+      if (val !== null) setFocusedResidue(val);
+    },
   });
 
   // ── 3. Efectos reactivos ───────────────────────────────────────────────────
