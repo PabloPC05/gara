@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/src/assets/logo.png">
+    <title>BioHack — Predicción de Estructuras Proteicas</title>
+    <meta name="description" content="Portal de predicción de estructuras proteicas con IA. Análisis sin necesidad de conocimientos de Linux o supercomputadores." />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <!-- TEMP: overflow detector - REMOVE AFTER DEBUG -->
+    <script>
+      (function(){
+        var overlay = null;
+        function scan(){
+          var results = [];
+          document.querySelectorAll('*').forEach(function(el){
+            if(el.scrollWidth > el.clientWidth + 1){
+              var r = el.getBoundingClientRect();
+              if(r.width > 0 && r.height > 0){
+                var path = [];
+                var node = el;
+                for(var i=0;i<5&&node&&node!==document.body;i++){
+                  var cls = (node.className&&typeof node.className==='string') ? '.'+node.className.split(/\s+/).slice(0,3).join('.') : '';
+                  path.unshift(node.tagName.toLowerCase()+cls);
+                  node = node.parentElement;
+                }
+                results.push({
+                  path: path.join(' > '),
+                  scrollW: el.scrollWidth,
+                  clientW: el.clientWidth,
+                  overflow: el.scrollWidth - el.clientWidth,
+                  text: (el.textContent||'').slice(0,80).replace(/\s+/g,' '),
+                  rect: {x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height)}
+                });
+              }
+            }
+          });
+          results.sort(function(a,b){return b.overflow-a.overflow;});
+          if(!overlay){
+            overlay = document.createElement('div');
+            overlay.id='__overflow_debug';
+            overlay.style.cssText='position:fixed;bottom:0;right:0;z-index:99999;max-width:600px;max-height:400px;overflow:auto;background:#1e1e2e;color:#cdd6f4;font:11px/1.6 monospace;padding:12px;border:2px solid #f38ba8;pointer-events:auto;';
+            overlay.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><b style="color:#f38ba8">OVERFLOW DETECTOR</b><button onclick="this.parentElement.parentElement.remove()" style="color:#cdd6f4;background:none;border:none;cursor:pointer;font-size:14px">✕</button></div>';
+            document.body.appendChild(overlay);
+          }
+          var content = overlay.querySelector('#__overflow_content');
+          if(!content){
+            content = document.createElement('div');
+            content.id='__overflow_content';
+            overlay.appendChild(content);
+          }
+          if(results.length === 0){
+            content.innerHTML='<div style="color:#a6e3a1">✓ No overflow detected</div>';
+          } else {
+            var html = '<div style="color:#f38ba8;margin-bottom:6px">'+results.length+' elements overflow:</div>';
+            results.slice(0,15).forEach(function(r){
+              html += '<div style="border-bottom:1px solid #313244;padding:4px 0">';
+              html += '<div style="color:#89b4fa">'+r.path+'</div>';
+              html += '<div>overflow: <span style="color:#f38ba8">'+r.overflow+'px</span> (scroll:'+r.scrollW+' client:'+r.clientW+')</div>';
+              html += '<div>pos: x='+r.rect.x+' y='+r.rect.y+' '+r.rect.w+'×'+r.rect.h+'</div>';
+              html += '<div style="color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:560px">'+r.text.replace(/</g,'&lt;')+'</div>';
+              html += '</div>';
+            });
+            content.innerHTML=html;
+          }
+          console.log('[OVERFLOW]', results.length, 'elements overflow:', results);
+        }
+        setTimeout(scan, 3000);
+        setInterval(scan, 5000);
+        window.__scanOverflow = scan;
+      })();
+    </script>
+  </body>
+</html>

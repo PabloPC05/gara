@@ -1,0 +1,15 @@
+**/dist/
+**/node_modules/
+
+**/*.log
+**/*.njsproj
+**/*.ntvs*
+**/*.sln
+**/*.suo
+**/*.sw?
+**/.DS_Store
+**/.agents
+**/.env
+**/.env
+**/bun.lock
+**/package-lock.json
