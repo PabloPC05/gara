@@ -31,9 +31,7 @@ const AA_GROUP_COLORS = {
 export function FastaBar() {
   const activeProteinId = useProteinStore((s) => s.activeProteinId)
   const proteinsById = useProteinStore((s) => s.proteinsById)
-  const selectedProteinIds = useProteinStore((s) => s.selectedProteinIds)
   const activeTab = useUIStore((s) => s.activeTab)
-  const detailsPanelOpen = useUIStore((s) => s.detailsPanelOpen)
   const focusedResidue = useUIStore((s) => s.focusedResidue)
   const setFocusedResidue = useUIStore((s) => s.setFocusedResidue)
 
@@ -55,16 +53,6 @@ export function FastaBar() {
 
   const protein = activeProteinId ? proteinsById[activeProteinId] : null
   const proteinSequence = protein?.sequence ?? ''
-  const selectedProteinsCount = selectedProteinIds.reduce((count, id) => {
-    const selectedProtein = proteinsById[id]
-    return selectedProtein && selectedProtein.name ? count + 1 : count
-  }, 0)
-  const isComparison = selectedProteinsCount >= 2
-  const visibleCount = isComparison ? Math.min(selectedProteinsCount, 4) : 1
-  const defaultDetailsWidth = isComparison
-    ? `min(${visibleCount * 22}rem, calc(100vw - 4rem))`
-    : '26rem'
-
   // Solo se puede seleccionar un residuo si hay una proteína cargada y no estamos en modo borrador
   const canSelect = !!activeProteinId && draftSequence.length === 0
 
@@ -118,9 +106,7 @@ export function FastaBar() {
   const leftOpen = activeTab !== null
 
   const leftVal = leftOpen ? 'var(--sidebar-width, 22rem)' : '0rem'
-  const rightVal = detailsPanelOpen
-    ? `var(--details-sidebar-width, ${defaultDetailsWidth})`
-    : 'var(--details-sidebar-collapsed-width, 2.5rem)'
+  const rightVal = 'var(--details-width, 40px)'
 
   const toggleKeyboard = (e) => {
     e.stopPropagation()

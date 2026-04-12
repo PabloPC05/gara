@@ -84,10 +84,24 @@ function computeMaxPae(matrix: number[][]): number {
 
 export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeHeatmapProps) {
   const plotRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const n = paeMatrix.length
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [containerWidth, setContainerWidth] = useState(0)
 
   const dataMaxPae = useMemo(() => computeMaxPae(paeMatrix), [paeMatrix])
+
+  // Track container width with ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0
+      if (w > 0) setContainerWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const tickPositions = useMemo(() => {
     if (n <= 20) return Array.from({ length: n }, (_, i) => i)
@@ -96,14 +110,12 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   }, [n])
 
   const drawPlot = useCallback(async () => {
-    if (!plotRef.current || n === 0) return
+    if (!plotRef.current || n === 0 || containerWidth === 0) return
 
     try {
       const Plotly = await loadPlotly()
       if (!plotRef.current) return
 
-      // Measure the actual container width BEFORE rendering
-      const containerWidth = plotRef.current.parentElement?.clientWidth ?? 300
       const plotWidth = Math.max(containerWidth, 100)
       const margins = compact ? { l: 40, r: 10, t: 10, b: 30 } : { l: 60, r: 20, t: 10, b: 50 }
       const plotHeight = compact
@@ -182,7 +194,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
     } catch {
       setStatus('error')
     }
-  }, [paeMatrix, n, compact, tickPositions, dataMaxPae])
+  }, [paeMatrix, n, compact, tickPositions, dataMaxPae, containerWidth])
 
   useEffect(() => {
     drawPlot()
@@ -194,15 +206,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
     }
   }, [drawPlot])
 
-  useEffect(() => {
-    if (!plotRef.current || status !== 'ready') return
-    const w = window as Window & { Plotly?: PlotlyModule }
-    const handleResize = () => {
-      if (plotRef.current && w.Plotly) w.Plotly.Plots.resize(plotRef.current)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [status])
+  // ResizeObserver above handles both window resize and sidebar resize
 
   if (n === 0) {
     return (
@@ -213,7 +217,7 @@ export default function PaeHeatmap({ paeMatrix, meanPae, compact = false }: PaeH
   }
 
   const plotDiv = (
-    <div style={{ maxWidth: '100%', overflow: 'hidden', position: 'relative', width: '100%' }}>
+    <div ref={containerRef} style={{ maxWidth: '100%', overflow: 'hidden', position: 'relative', width: '100%' }}>
       {status === 'loading' && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-none">
           <div className="flex items-center gap-2 text-[11px] text-slate-400">

@@ -8,6 +8,7 @@ import { downloadBlob, safeFilename } from './protein-details/formatters'
 
 const MAX_VISIBLE = 4
 const SINGLE_WIDTH = 416 // 26rem
+const COLLAPSED_WIDTH = 40
 
 export function ProteinDetailsDrawer() {
   const drawerRef = useRef(null)
@@ -39,25 +40,42 @@ export function ProteinDetailsDrawer() {
     : SINGLE_WIDTH
   const drawerWidth = customWidth ?? defaultWidth
 
-  // Resize
+  // Propagate current width as CSS variable so FastaBar can read it
+  useEffect(() => {
+    const wrapper = drawerRef.current?.parentElement
+    if (!wrapper) return
+    const w = detailsPanelOpen ? drawerWidth : COLLAPSED_WIDTH
+    wrapper.style.setProperty('--details-width', `${w}px`)
+  }, [detailsPanelOpen, drawerWidth])
+
+  // Resize — imperative DOM updates via style for fluid dragging (same pattern as left sidebar)
   const handleResizeStart = useCallback((e) => {
     e.preventDefault()
     const drawer = drawerRef.current
     if (!drawer) return
     const startX = e.clientX
     const startWidth = drawer.getBoundingClientRect().width
-    const fastaBar = document.querySelector('[data-slot="fasta-bar"]')
+    const MIN_WIDTH = 200
+    const MAX_WIDTH = window.innerWidth * 0.8
+
     drawer.style.transition = 'none'
-    if (fastaBar) fastaBar.style.transition = 'none'
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+
+    const wrapper = drawer.parentElement
+    const fastaBar = document.querySelector('[data-slot="fasta-bar"]')
+    if (fastaBar) fastaBar.style.transition = 'none'
+
     const onMove = (ev) => {
-      const w = Math.min(Math.max(startWidth + (startX - ev.clientX), 200), window.innerWidth * 0.8)
-      setCustomWidth(w)
+      const w = Math.min(Math.max(startWidth + (startX - ev.clientX), MIN_WIDTH), MAX_WIDTH)
+      drawer.style.width = `${w}px`
+      drawer.style.maxWidth = `${w}px`
+      if (wrapper) wrapper.style.setProperty('--details-width', `${w}px`)
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      setCustomWidth(drawer.getBoundingClientRect().width)
       drawer.style.transition = ''
       if (fastaBar) fastaBar.style.transition = ''
       document.body.style.cursor = ''
@@ -76,13 +94,46 @@ export function ProteinDetailsDrawer() {
     downloadBlob(pdbFile, `${safeFilename(name)}.pdb`, 'chemical/x-pdb')
   }
 
-  // When closed, render collapsed strip only
-  if (!detailsPanelOpen) {
-    return (
+  return (
+    <>
+      {/* Full panel — slides in/out */}
+      <div
+        ref={drawerRef}
+        style={{
+          width: drawerWidth,
+          maxWidth: drawerWidth,
+          transform: detailsPanelOpen ? 'translateX(0)' : `translateX(100%)`,
+        }}
+        className="absolute right-0 top-0 bottom-0 z-40 flex flex-col overflow-hidden border-l border-slate-200 bg-white shadow-xl transition-transform duration-300 ease-in-out"
+      >
+        {/* Resize handle */}
+        <div
+          onMouseDown={handleResizeStart}
+          className="absolute left-0 top-0 bottom-0 z-50 w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors duration-150"
+        />
+
+        {hasProteins ? (
+          isComparison
+            ? <ComparisonBody proteins={proteins} visibleCount={visibleCount} />
+            : <DrawerBody protein={proteins[0]} />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/50 h-full">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center bg-slate-100 text-slate-400"><PanelRight className="h-8 w-8" /></div>
+            <h3 className="text-sm font-semibold text-slate-900">Sin selección</h3>
+            <p className="mt-1 text-xs text-slate-500 max-w-[180px]">Seleccione una o varias proteínas en el panel izquierdo para ver sus propiedades y análisis.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Collapsed strip — visible when panel is closed */}
       <div
         onClick={() => setDetailsPanelOpen(true)}
-        style={{ width: 40, flexShrink: 0 }}
-        className="flex flex-col items-center gap-2 border-l border-slate-200 bg-white py-4 px-1 cursor-pointer hover:bg-slate-50 transition-colors group h-full"
+        style={{
+          width: COLLAPSED_WIDTH,
+          opacity: detailsPanelOpen ? 0 : 1,
+          pointerEvents: detailsPanelOpen ? 'none' : 'auto',
+        }}
+        className="absolute right-0 top-0 bottom-0 z-30 flex flex-col items-center gap-2 border-l border-slate-200 bg-white py-4 px-1 cursor-pointer hover:bg-slate-50 transition-opacity duration-300 ease-in-out group"
         title="Expandir detalles"
       >
         <div className="flex-1 flex items-center justify-center overflow-hidden">
@@ -105,42 +156,6 @@ export function ProteinDetailsDrawer() {
           </div>
         )}
       </div>
-    )
-  }
-
-  // When open, render full panel as a flex child with HARD width constraint
-  return (
-    <div
-      ref={drawerRef}
-      style={{
-        width: drawerWidth,
-        maxWidth: drawerWidth,
-        minWidth: 0,
-        flexShrink: 0,
-        flexGrow: 0,
-        overflow: 'hidden',
-        height: '100%',
-      }}
-      className="border-l border-slate-200 bg-white shadow-xl transition-[width] duration-300 ease-in-out"
-    >
-      {/* Resize handle */}
-      <div
-        onMouseDown={handleResizeStart}
-        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, zIndex: 50, cursor: 'col-resize' }}
-        className="hover:bg-slate-300 transition-colors duration-150"
-      />
-
-      {hasProteins ? (
-        isComparison
-          ? <ComparisonBody proteins={proteins} visibleCount={visibleCount} />
-          : <DrawerBody protein={proteins[0]} />
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-slate-50/50 h-full">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center bg-slate-100 text-slate-400"><PanelRight className="h-8 w-8" /></div>
-          <h3 className="text-sm font-semibold text-slate-900">Sin selección</h3>
-          <p className="mt-1 text-xs text-slate-500 max-w-[180px]">Seleccione una o varias proteínas en el panel izquierdo para ver sus propiedades y análisis.</p>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

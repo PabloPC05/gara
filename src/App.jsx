@@ -38,22 +38,19 @@ export default function App() {
 
       <div className="flex flex-1 min-h-0">
         <ActivityBar />
-        <div style={{ contain: 'layout paint' }} className="relative flex flex-1 min-w-0 h-full">
-          {/* Left sidebar + viewer: takes remaining space */}
-          <div className="relative flex-1 min-w-0 h-full">
-            <CommandSidebar />
-            <SidebarInset
-              className="relative flex flex-col h-full w-full"
-              style={{ backgroundColor: viewerBackground }}
-            >
-              <FastaBar />
-              <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-                <MolecularScene background={viewerBackground} />
-              </div>
-            </SidebarInset>
-          </div>
+        <div style={{ contain: 'layout paint' }} className="relative flex-1 min-w-0 h-full">
+          <CommandSidebar />
+          <SidebarInset
+            className="relative flex flex-col h-full w-full"
+            style={{ backgroundColor: viewerBackground }}
+          >
+            <FastaBar />
+            <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+              <MolecularScene background={viewerBackground} />
+            </div>
+          </SidebarInset>
 
-          {/* Right sidebar: fixed width, never grows */}
+          {/* Right sidebar: overlays on top of viewer, like left sidebar */}
           <ProteinDetailsDrawer />
         </div>
       </div>
