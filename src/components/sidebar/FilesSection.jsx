@@ -1,38 +1,40 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
-import { useProteinLoader } from '@/hooks/useProteinLoader';
+import { PersistentJobStatusPanel } from '@/components/ui/PersistentJobStatusPanel';
+import { loadProteinFromInputWithJobPanel } from '@/lib/proteinLoadService';
+import {
+  ACTIVE_JOB_STATUSES,
+  JOB_PANEL_KEYS,
+  useJobStatusStore,
+} from '@/stores/useJobStatusStore';
 import { useProteinStore } from '@/stores/useProteinStore';
 import { validateFasta } from '@/utils/fasta';
 import ExportDriveButton from '../ExportDriveButton';
 
 export function FilesSection() {
   const [fasta, setFasta] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [done, setDone] = useState(false);
+  const [validationError, setValidationError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const { load } = useProteinLoader();
+  const jobPanel = useJobStatusStore((s) => s.panelsByKey[JOB_PANEL_KEYS.filesFasta] ?? null);
   const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
+  const isJobActive = ACTIVE_JOB_STATUSES.has(jobPanel?.status);
 
   const handleRun = async () => {
     const validation = validateFasta(fasta);
     if (!validation.valid) {
-      setError(validation.reason ?? 'Secuencia FASTA no válida');
+      setValidationError(validation.reason ?? 'Secuencia FASTA no válida');
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    setDone(false);
+    setValidationError(null);
     try {
-      const proteinId = await load(fasta);
+      const proteinId = await loadProteinFromInputWithJobPanel(fasta, {
+        panelKey: JOB_PANEL_KEYS.filesFasta,
+      });
       if (proteinId) setSelectedProteinIds([proteinId]);
-      setDone(true);
-    } catch (err) {
-      setError(err?.message ?? 'Error al procesar la secuencia');
-    } finally {
-      setIsLoading(false);
+    } catch {
+      // El servicio ya actualiza el panel persistente con FAILED/CANCELLED.
     }
   };
 
@@ -42,6 +44,7 @@ export function FilesSection() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      setValidationError(null);
       setFasta(event.target.result);
     };
     reader.readAsText(file);
@@ -95,44 +98,28 @@ export function FilesSection() {
           className="w-full h-48 p-3 border border-slate-200 rounded-none focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-xs shadow-sm"
           placeholder=">Sequence_1&#10;MTEITAAMVKELRESTGAGMMDCKNALSET..."
           value={fasta}
-          onChange={(e) => setFasta(e.target.value)}
+          onChange={(e) => {
+            setValidationError(null);
+            setFasta(e.target.value);
+          }}
         />
         <button
           className="bg-slate-900 text-white py-2 rounded-none hover:bg-slate-800 transition-colors font-medium mt-2 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
           onClick={handleRun}
-          disabled={!fasta || isLoading}
+          disabled={!fasta || isJobActive}
         >
-          {isLoading && <Loader2 size={15} className="animate-spin" />}
-          {isLoading ? 'Procesando...' : 'Run Job'}
+          {isJobActive && <Loader2 size={15} className="animate-spin" />}
+          {isJobActive ? 'Procesando...' : 'Run Job'}
         </button>
       </div>
 
-      {error && (
+      {validationError && (
         <div className="mt-3 border border-rose-200 rounded-none p-3 bg-rose-50 text-rose-700 text-xs">
-          {error}
+          {validationError}
         </div>
       )}
 
-      {isLoading && (
-        <div className="mt-3 border border-slate-200 rounded-none p-3 bg-slate-50 shadow-sm">
-          <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
-          <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 w-3 h-3 rounded-none bg-[#e31e24] animate-pulse shadow-[0_0_8px_rgba(227,30,36,0.6)]" />
-            <span className="font-mono text-sm font-semibold">RUNNING</span>
-          </div>
-          <p className="text-xs text-slate-400 mt-2">La primera petición puede tardar hasta 30 s.</p>
-        </div>
-      )}
-
-      {done && !isLoading && (
-        <div className="mt-3 border border-emerald-200 rounded-none p-3 bg-emerald-50 shadow-sm">
-          <h3 className="font-medium text-xs text-slate-500 uppercase tracking-wider mb-3">Job Status</h3>
-          <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 w-3 h-3 rounded-none bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-            <span className="font-mono text-sm font-semibold">COMPLETED</span>
-          </div>
-        </div>
-      )}
+      <PersistentJobStatusPanel panelKey={JOB_PANEL_KEYS.filesFasta} />
     </div>
   );
 }

@@ -66,10 +66,12 @@ function detectStructureFormat(data) {
 
 /**
  * Devuelve la estructura prioritaria junto con su formato real.
- * Orden de preferencia: pdb_file → cif_file.
+ * Orden de preferencia: cif_file → pdb_file.
+ * El CIF se prefiere porque suele contener la estructura completa (todos los
+ * residuos con coordenadas), mientras que el PDB puede estar truncado.
  */
 function pickStructurePayload(structural) {
-  const candidates = [structural?.pdbFile, structural?.cifFile]
+  const candidates = [structural?.cifFile, structural?.pdbFile]
   for (const data of candidates) {
     const format = detectStructureFormat(data)
     if (format) return { data, format }
@@ -160,6 +162,7 @@ function buildRawFromApi(validated) {
       ? {
           confidence: structural.confidence
             ? {
+                plddt_per_residue: structural.confidence.plddtPerResidue ?? [],
                 plddt_mean: structural.confidence.plddtMean,
                 mean_pae: structural.confidence.meanPae,
                 pae_matrix: structural.confidence.paeMatrix ?? [],
@@ -285,9 +288,10 @@ export function apiToUnified(validated, originalFasta = null) {
   const seqProps   = biological?.sequenceProperties
   const length     = seqProps?.length ?? 0
   const molecularWeightKda = seqProps?.molecularWeightKda ?? 0
-  const plddtMean  = meta.plddtAverage ?? structural.confidence?.plddtMean ?? null
-  const meanPae    = structural.confidence?.meanPae ?? null
-  const paeMatrix  = structural.confidence?.paeMatrix ?? []
+  const plddtMean        = meta.plddtAverage ?? structural.confidence?.plddtMean ?? null
+  const meanPae          = structural.confidence?.meanPae ?? null
+  const paeMatrix        = structural.confidence?.paeMatrix ?? []
+  const plddtPerResidue  = structural.confidence?.plddtPerResidue ?? []
   const toxicityAlertsCount = biological?.toxicityAlerts?.length ?? 0
 
   const structure = pickStructurePayload(structural)
@@ -303,6 +307,7 @@ export function apiToUnified(validated, originalFasta = null) {
     plddtMean,
     meanPae,
     paeMatrix,
+    plddtPerResidue,
     biological: biological
       ? {
           solubility: biological.solubilityScore ?? 0,

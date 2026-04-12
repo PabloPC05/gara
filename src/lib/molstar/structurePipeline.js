@@ -105,7 +105,90 @@ export function resolveStructurePayload(protein) {
   return { text: candidate.text, format: isCif ? 'mmcif' : 'pdb' };
 }
 
-/** 
+/**
+ * Reescribe la columna B-factor de un PDB clásico con los valores pLDDT.
+ * Mapea auth_seq_id (1-based, columnas 23-26) al índice del array (0-based).
+ * @param {string} pdbText  Contenido en formato PDB
+ * @param {number[]} plddt  Array plddt_per_residue (valores 0-100)
+ * @returns {string} PDB con B-factors corregidos
+ */
+export function injectPlddtBfactors(pdbText, plddt) {
+  if (!pdbText || !plddt?.length) return pdbText
+  return pdbText.split('\n').map(line => {
+    const rec = line.substring(0, 6)
+    if (rec !== 'ATOM  ' && rec !== 'HETATM') return line
+    const seqNum = parseInt(line.substring(22, 26).trim(), 10)
+    if (isNaN(seqNum)) return line
+    const idx = seqNum - 1
+    if (idx < 0 || idx >= plddt.length) return line
+    const bStr = plddt[idx].toFixed(2).padStart(6, ' ')
+    return line.substring(0, 60) + bStr + line.substring(66)
+  }).join('\n')
+}
+
+/**
+ * Reescribe la columna B_iso_or_equiv de un mmCIF con los valores pLDDT.
+ * Parsea los encabezados del loop _atom_site para localizar dinámicamente
+ * las columnas de secuencia (auth_seq_id > label_seq_id) y B_iso_or_equiv.
+ * @param {string} cifText  Contenido en formato mmCIF
+ * @param {number[]} plddt  Array plddt_per_residue (valores 0-100)
+ * @returns {string} mmCIF con B_iso_or_equiv corregidos
+ */
+export function injectPlddtBfactorsCif(cifText, plddt) {
+  if (!cifText || !plddt?.length) return cifText
+
+  const lines = cifText.split('\n')
+  const result = []
+
+  let headers = []
+  let bIdx = -1
+  let seqIdx = -1
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Inicio de un bloque loop_ — resetear estado de cabeceras
+    if (trimmed === 'loop_') {
+      headers = []
+      bIdx = -1
+      seqIdx = -1
+      result.push(line)
+      continue
+    }
+
+    // Cabecera de columna _atom_site.*
+    if (trimmed.startsWith('_atom_site.')) {
+      const col = trimmed.split(/\s+/)[0]
+      if (col === '_atom_site.B_iso_or_equiv') bIdx = headers.length
+      // Preferir auth_seq_id; aceptar label_seq_id como fallback
+      if (col === '_atom_site.auth_seq_id') seqIdx = headers.length
+      else if (col === '_atom_site.label_seq_id' && seqIdx === -1) seqIdx = headers.length
+      headers.push(col)
+      result.push(line)
+      continue
+    }
+
+    // Fila de datos de átomo: sustituir B_iso_or_equiv si tenemos los índices
+    if (bIdx >= 0 && seqIdx >= 0 && (trimmed.startsWith('ATOM') || trimmed.startsWith('HETATM'))) {
+      const tokens = trimmed.split(/\s+/)
+      const seqNum = parseInt(tokens[seqIdx], 10)
+      if (!isNaN(seqNum)) {
+        const i = seqNum - 1
+        if (i >= 0 && i < plddt.length) {
+          tokens[bIdx] = plddt[i].toFixed(2)
+          result.push(tokens.join(' '))
+          continue
+        }
+      }
+    }
+
+    result.push(line)
+  }
+
+  return result.join('\n')
+}
+
+/**
  * Carga una estructura en el plugin de Mol*.
  * @param {import('molstar/lib/mol-plugin/context').PluginContext} plugin
  * @param {string} id Identificador único.
@@ -115,8 +198,16 @@ export function resolveStructurePayload(protein) {
 export async function loadStructureEntry(plugin, id, protein, reprType) {
   const payload = resolveStructurePayload(protein);
   if (!payload) throw new Error(`No structural payload available for protein ${id}`);
-  
-  const { text, format } = payload;
+
+  const { text: rawText, format } = payload;
+  // Inyectar pLDDT en la columna B-factor/B_iso_or_equiv.
+  // El backend genera el fichero de estructura con esa columna a 0; los valores
+  // reales de confianza llegan por separado en plddt_per_residue.
+  let text = rawText;
+  if (protein.plddtPerResidue?.length) {
+    if (format === 'pdb') text = injectPlddtBfactors(rawText, protein.plddtPerResidue);
+    else if (format === 'mmcif') text = injectPlddtBfactorsCif(rawText, protein.plddtPerResidue);
+  }
   const dataRef = await plugin.builders.data.rawData({ data: text, label: id });
   const traj = await plugin.builders.structure.parseTrajectory(dataRef, format);
   const model = await plugin.builders.structure.createModel(traj);

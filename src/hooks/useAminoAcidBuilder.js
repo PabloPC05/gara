@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
+import { loadProteinFromInputWithJobPanel } from '@/lib/proteinLoadService';
+import { JOB_PANEL_KEYS } from '@/stores/useJobStatusStore';
 import { useProteinStore } from '../stores/useProteinStore';
-import { useProteinLoader } from './useProteinLoader';
 import { isValidEntry } from './useCommandEntries';
 
 /**
@@ -10,9 +11,8 @@ import { isValidEntry } from './useCommandEntries';
 export function useAminoAcidBuilder() {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [draftSequence, setDraftSequence] = useState('');
-  
+
   const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
-  const { load } = useProteinLoader();
 
   const handleStartCreateEntry = useCallback(() => {
     if (isPickerOpen) return;
@@ -27,15 +27,19 @@ export function useAminoAcidBuilder() {
   const handleConfirmPicker = useCallback(async () => {
     if (!isValidEntry(draftSequence)) return;
     const seq = draftSequence;
-    setDraftSequence('');
     try {
-      const loadedId = await load(seq);
-      if (loadedId) setSelectedProteinIds([loadedId]);
-    } catch (error) {
-      console.error('Failed to load protein entry:', error);
+      const loadedId = await loadProteinFromInputWithJobPanel(seq, {
+        panelKey: JOB_PANEL_KEYS.aminoBuilder,
+      });
+      if (loadedId) {
+        setSelectedProteinIds([loadedId]);
+        setDraftSequence('');
+        setIsPickerOpen(false);
+      }
+    } catch {
+      // El panel persistente refleja el estado terminal y permite descartarlo.
     }
-    setIsPickerOpen(false);
-  }, [draftSequence, load, setSelectedProteinIds]);
+  }, [draftSequence, setSelectedProteinIds]);
 
   const appendLetter = useCallback((letter) => {
     setDraftSequence((prev) => prev + letter);

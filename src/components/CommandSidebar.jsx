@@ -122,7 +122,6 @@ export function CommandSidebar() {
       <AminoAcidPicker
         open={isPickerOpen}
         onOpenChange={handlePickerOpenChange}
-        draftSequence={draftSequence}
         onAppendLetter={appendLetter}
         onDeleteLast={deleteLastLetter}
         onClear={clearDraft}

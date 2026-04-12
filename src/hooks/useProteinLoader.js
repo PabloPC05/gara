@@ -1,8 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
-import { useProteinStore } from '@/stores/useProteinStore'
-import { submitJob, pollJob, ApiError } from '@/lib/apiClient'
-import { apiToUnified } from '@/lib/proteinAdapter'
+import { loadProteinFromInput } from '@/lib/proteinLoadService'
 
 /**
  * Hook para lanzar la carga de una proteína a partir de un input libre
@@ -10,53 +8,27 @@ import { apiToUnified } from '@/lib/proteinAdapter'
  *   submitJob → pollJob → apiToUnified → upsertProtein
  *
  * Devuelve el `proteinId` (unified.id) una vez completado, o lanza error.
+ * Expone `jobStatus` con el último estado recibido del servidor.
  */
 export function useProteinLoader() {
-  const upsertProtein    = useProteinStore((s) => s.upsertProtein)
-  const setProteinLoading = useProteinStore((s) => s.setProteinLoading)
-  const setProteinError   = useProteinStore((s) => s.setProteinError)
-
-  /** Garantiza formato FASTA. Si el input ya tiene cabecera ">", lo deja tal cual. */
-  const toFasta = (input) => {
-    const trimmed = input.trim()
-    if (trimmed.startsWith('>')) return trimmed
-    return `>sequence\n${trimmed}`
-  }
+  const [jobStatus, setJobStatus] = useState(null)
 
   const load = useCallback(
-    async (input, { signal } = {}) => {
+    async (input, { signal, onStatusChange } = {}) => {
       const trimmed = input?.trim()
       if (!trimmed) return null
 
-    let jobId = null
-    try {
-      const fasta = toFasta(trimmed)
-      const submission = await submitJob(fasta)
-      jobId = submission.jobId
-      setProteinLoading(jobId)
-
-      const job = await pollJob(jobId, { signal })
-      if (job.status !== 'COMPLETED') {
-        throw new ApiError(`Job ${jobId} terminó con estado ${job.status}`)
-      }
-
-      const unified = apiToUnified(job, fasta)
-        if (!unified) {
-          throw new ApiError('Respuesta de la API sin datos suficientes')
-        }
-
-        upsertProtein(unified)
-        return unified.id
-      } catch (error) {
-        if (error?.name === 'AbortError') return null
-        if (jobId) {
-          setProteinError(jobId, error?.message ?? 'Error desconocido')
-        }
-        throw error
-      }
+      setJobStatus('PENDING')
+      return loadProteinFromInput(trimmed, {
+        signal,
+        onStatusChange: (status) => {
+          setJobStatus(status)
+          onStatusChange?.(status)
+        },
+      })
     },
-    [upsertProtein, setProteinLoading, setProteinError],
+    [],
   )
 
-  return { load }
+  return { load, jobStatus }
 }

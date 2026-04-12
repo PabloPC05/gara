@@ -260,7 +260,7 @@ export function AiSection() {
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 overflow-hidden text-sm text-slate-700">
       <div className="flex items-center justify-between gap-3 px-1">
         <h2 className="flex-shrink-0 font-semibold text-xs uppercase tracking-wider text-slate-500">
-          AI Assistant
+          Gemini Assistant
         </h2>
         <span
           className="min-w-0 truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500"
@@ -288,7 +288,9 @@ export function AiSection() {
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-3 py-3">
           {messages.length === 0 && (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center text-slate-400">
-              <GeminiIcon size={28} className="opacity-20" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-none border border-slate-200 bg-white shadow-sm">
+                <GeminiIcon size={28} />
+              </div>
               <p className="max-w-[18rem] text-xs leading-relaxed">
                 {protein
                   ? `Haz una pregunta sobre ${protein.name} o usa "Explicar proteína" para generar un resumen.`
@@ -343,7 +345,7 @@ export function AiSection() {
                     {busy ? (
                       <Loader2 size={12} className="animate-spin" />
                     ) : (
-                      <GeminiIcon size={12} />
+                      <GeminiIcon size={14} />
                     )}
                     Explicar proteína
                   </button>
@@ -369,6 +371,10 @@ export function AiSection() {
                 Se detectó FASTA. Al enviar se reutilizará el flujo real de carga de la app.
               </div>
             ) : null}
+
+            <div className="border-t border-slate-100 px-3 py-2 text-[10px] text-slate-400">
+              Gemini is a trademark of Google LLC.
+            </div>
           </div>
         </div>
       </div>

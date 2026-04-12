@@ -1,5 +1,6 @@
 import type { JobOutputsResponse } from "../api/types";
 import { useGeminiExplanation } from "../hooks/useGeminiExplanation";
+import { GeminiIcon } from "./ui/GeminiIcon";
 
 export default function ExplanationPanel({ outputs }: { outputs: JobOutputsResponse }) {
   const { explanation, loading, error } = useGeminiExplanation(outputs);
@@ -12,9 +13,9 @@ export default function ExplanationPanel({ outputs }: { outputs: JobOutputsRespo
     return (
       <div className="glass-card animate-fade-in-up" style={{ padding: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <span style={{ fontSize: 16 }}>🤖</span>
+          <GeminiIcon size={16} />
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-secondary)" }}>
-            Interpretación IA
+            Interpretación Gemini
           </h3>
         </div>
         <p style={{
@@ -26,7 +27,7 @@ export default function ExplanationPanel({ outputs }: { outputs: JobOutputsRespo
           background: "rgba(100, 116, 139, 0.08)",
           border: "1px solid rgba(100, 116, 139, 0.15)",
         }}>
-          La interpretación automática no está disponible en este momento. Los resultados del dashboard son completamente válidos.
+          La interpretación con Gemini no está disponible en este momento. Los resultados del dashboard son completamente válidos.
         </p>
       </div>
     );
@@ -47,7 +48,7 @@ export default function ExplanationPanel({ outputs }: { outputs: JobOutputsRespo
             flexShrink: 0,
           }} />
           <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-            Analizando resultados con IA...
+            Analizando resultados con Gemini...
           </p>
         </div>
       </div>
@@ -58,9 +59,9 @@ export default function ExplanationPanel({ outputs }: { outputs: JobOutputsRespo
   return (
     <div className="glass-card animate-fade-in-up" style={{ padding: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <span style={{ fontSize: 16 }}>🤖</span>
+        <GeminiIcon size={16} />
         <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
-          Interpretación IA
+          Interpretación Gemini
         </h3>
         {isStreaming && (
           <span style={{

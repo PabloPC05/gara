@@ -4,10 +4,10 @@ import { useUIStore } from '../../stores/useUIStore';
 import { GeminiIcon } from '../ui/GeminiIcon';
 
 const NAV_TABS = [
-  { id: 'plus',   icon: SquarePlus, title: 'Espacio 3D' },
-  { id: 'files',  icon: FileCode,   title: 'Scripts & Jobs' },
-  { id: 'search', icon: Search,     title: 'Explorar Catálogo' },
-  { id: 'ai',     icon: GeminiIcon, title: 'AI Assistant' },
+  { id: 'plus',   icon: SquarePlus, title: 'Espacio 3D', iconSize: 24 },
+  { id: 'files',  icon: FileCode,   title: 'Scripts & Jobs', iconSize: 24 },
+  { id: 'search', icon: Search,     title: 'Explorar Catálogo', iconSize: 24 },
+  { id: 'ai',     icon: GeminiIcon, title: 'Gemini Assistant', iconSize: 26 },
 ];
 
 export function ActivityBar() {
@@ -18,7 +18,7 @@ export function ActivityBar() {
     <div className="flex flex-col items-center w-12 bg-black border-r border-[#27272a] py-4 gap-4 z-50 h-full flex-shrink-0">
 
       {/* Tabs principales */}
-      {NAV_TABS.map(({ id, icon: Icon, title }) => (
+      {NAV_TABS.map(({ id, icon: Icon, title, iconSize }) => (
         <button
           key={id}
           onClick={() => setActiveTab(id)}
@@ -29,7 +29,7 @@ export function ActivityBar() {
           }`}
           title={title}
         >
-          <Icon size={24} strokeWidth={1.5} />
+          <Icon size={iconSize} strokeWidth={1.5} />
         </button>
       ))}
 

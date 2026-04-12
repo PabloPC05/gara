@@ -45,18 +45,21 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
   return (
     <div
       data-role="molecular-viewer"
-      className="w-full h-full relative bg-white flex items-center justify-center min-h-[500px]"
+      className="w-full h-full relative isolate bg-white flex items-center justify-center min-h-[500px]"
     >
       {/* Mol* inyecta su propio <canvas> aquí */}
       <div
         ref={containerRef}
-        className="w-full h-full absolute inset-0"
+        className="w-full h-full absolute inset-0 z-0"
         style={{ minHeight: '500px' }}
       />
 
-      {/* Marca de agua: Logo Camelia (visible solo cuando no hay selección) */}
+      {/* Marca de agua base del visor: visible, pero siempre por debajo del resto de overlays */}
       {!hasSelection && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 select-none animate-in fade-in duration-700">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-[1] flex items-center justify-center pointer-events-none select-none animate-in fade-in duration-700"
+        >
           <img 
             src="/src/assets/logo.png" 
             alt="Camelia Logo" 
@@ -66,7 +69,7 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
       )}
 
       {/* Rejilla decorativa de puntos */}
-      <div className="absolute inset-0 pointer-events-none opacity-15 z-20" style={DOT_GRID_STYLE} />
+      <div className="absolute inset-0 pointer-events-none opacity-15 z-10" style={DOT_GRID_STYLE} />
 
       {/* Tooltip Equilibrado - Elevado a la derecha */}
       <div 
@@ -130,7 +133,9 @@ export default function ViewerCanvas({ containerRef, tooltip, children }) {
         )}
       </div>
 
-      {children}
+      <div className="relative z-20">
+        {children}
+      </div>
     </div>
   )
 }

@@ -5,6 +5,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '../ui/sheet.tsx'
+import { PersistentJobStatusPanel } from '../ui/PersistentJobStatusPanel'
+import {
+  ACTIVE_JOB_STATUSES,
+  JOB_PANEL_KEYS,
+  useJobStatusStore,
+} from '@/stores/useJobStatusStore'
 
 const AMINO_ACIDS = [
   { letter: 'G', abbr: 'Gly', name: 'Glicina',        nameEn: 'Glycine',       group: 'np', formula: 'C₂H₅NO₂',     mw: 75.03,  pI: 5.97, charge: 0,  desc: 'El aminoácido más pequeño. Confiere flexibilidad a las cadenas polipeptídicas.' },
@@ -118,6 +124,9 @@ export function AminoAcidPicker({
 }) {
   const [hoveredAa, setHoveredAa] = useState(null)
   const [hoveredRef, setHoveredRef] = useState(null)
+  const jobPanel = useJobStatusStore((s) => s.panelsByKey[JOB_PANEL_KEYS.aminoBuilder] ?? null)
+  const isJobActive = ACTIVE_JOB_STATUSES.has(jobPanel?.status)
+  const hasJobPanel = Boolean(jobPanel?.status)
 
   const handleKeyDown = (event) => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
@@ -129,7 +138,7 @@ export function AminoAcidPicker({
     }
 
     if (event.key === 'Enter') {
-      if (!canConfirm) return
+      if (!canConfirm || isJobActive) return
       event.preventDefault()
       onConfirm()
     }
@@ -195,7 +204,7 @@ export function AminoAcidPicker({
               </button>
               <button
                 onClick={onConfirm}
-                disabled={!canConfirm}
+                disabled={!canConfirm || isJobActive}
                 title="Procesar secuencia"
                 className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#e31e24] text-white transition-all hover:bg-[#c91b20] active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               >
@@ -204,22 +213,26 @@ export function AminoAcidPicker({
             </div>
           </div>
 
-          <div className="grid grid-cols-10 gap-1.5">
-            {AMINO_ACIDS.map((aa) => (
-              <button
-                key={aa.letter}
-                title={`${aa.name} · ${aa.letter}`}
-                onClick={() => onAppendLetter(aa.letter)}
-                onMouseEnter={(e) => { setHoveredAa(aa); setHoveredRef(e.currentTarget) }}
-                onMouseLeave={() => { setHoveredAa(null); setHoveredRef(null) }}
-                className={`h-9 flex items-center justify-center rounded-lg border text-[11px] font-semibold
-                            active:scale-95
-                            transition-all duration-75 ${GROUP_STYLES[aa.group]}`}
-              >
-                {aa.abbr}
-              </button>
-            ))}
-          </div>
+          {hasJobPanel ? (
+            <PersistentJobStatusPanel panelKey={JOB_PANEL_KEYS.aminoBuilder} />
+          ) : (
+            <div className="grid grid-cols-10 gap-1.5">
+              {AMINO_ACIDS.map((aa) => (
+                <button
+                  key={aa.letter}
+                  title={`${aa.name} · ${aa.letter}`}
+                  onClick={() => onAppendLetter(aa.letter)}
+                  onMouseEnter={(e) => { setHoveredAa(aa); setHoveredRef(e.currentTarget) }}
+                  onMouseLeave={() => { setHoveredAa(null); setHoveredRef(null) }}
+                  className={`h-9 flex items-center justify-center rounded-lg border text-[11px] font-semibold
+                              active:scale-95
+                              transition-all duration-75 ${GROUP_STYLES[aa.group]}`}
+                >
+                  {aa.abbr}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

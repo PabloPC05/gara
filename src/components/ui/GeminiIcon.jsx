@@ -1,19 +1,30 @@
+import geminiOfficialLogo from '../../assets/gemini-official.webp';
+
 /**
- * GeminiIcon — the 4-pointed star/sparkle that represents Google Gemini.
- * Accepts `size` and `className`. Any other props (e.g. `strokeWidth` from
- * lucide-style callers) are intentionally ignored.
+ * GeminiIcon — wraps the official Gemini product icon vendored from Google's
+ * Brand Resource Center CDN. Callers may resize it, but should not recolor or
+ * otherwise alter the asset.
  */
-export function GeminiIcon({ size = 24, className = '' }) {
+export function GeminiIcon({ size = 24, className = '', alt = '' }) {
+  const style =
+    typeof size === 'number'
+      ? undefined
+      : {
+          width: size,
+          height: size,
+        };
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M12 2C11.4 7.8 9 10.4 2 12C9 13.6 11.4 16.2 12 22C12.6 16.2 15 13.6 22 12C15 10.4 12.6 7.8 12 2Z" />
-    </svg>
+    <img
+      src={geminiOfficialLogo}
+      alt={alt}
+      aria-hidden={alt ? undefined : 'true'}
+      width={typeof size === 'number' ? size : undefined}
+      height={typeof size === 'number' ? size : undefined}
+      className={`inline-block shrink-0 select-none align-middle object-contain ${className}`.trim()}
+      style={style}
+      draggable="false"
+      decoding="async"
+    />
   );
 }

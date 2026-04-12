@@ -7,6 +7,7 @@ import { ToolsMenu } from './ToolsMenu'
 import { EnvironmentMenu } from './EnvironmentMenu'
 import { VisionMenu } from './VisionMenu'
 import { SearchBarTrigger } from './SearchBarTrigger'
+import { JobResourcesMenu } from './JobResourcesMenu'
 import { UserAccountModule } from './UserAccountModule'
 import { Menubar } from '../ui/menubar'
 import { useUIStore } from '../../stores/useUIStore'
@@ -66,6 +67,7 @@ export function MenuBar() {
           <PanelRight className="h-4 w-4" />
         </button>
 
+        <JobResourcesMenu />
         <div className="h-4 w-px bg-[#27272a] mx-1" />
         <UserAccountModule />
       </div>

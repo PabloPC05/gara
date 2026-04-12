@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Loader2, Search } from 'lucide-react'
 
-import { useProteinLoader } from '@/hooks/useProteinLoader'
+import { PersistentJobStatusPanel } from '@/components/ui/PersistentJobStatusPanel'
+import { searchCatalogProteins } from '@/lib/apiClient'
+import { loadCatalogProtein } from '@/lib/catalogProteinLoader'
 import {
-  ApiError,
-  getCatalogProteinDetail,
-  searchCatalogProteins,
-} from '@/lib/apiClient'
-import { useProteinStore } from '@/stores/useProteinStore'
+  ACTIVE_JOB_STATUSES,
+  JOB_PANEL_KEYS,
+  useJobStatusStore,
+} from '@/stores/useJobStatusStore'
 
 const PROTEIN_CATEGORIES = [
   { value: 'enzyme',      label: 'Enzyme' },
@@ -22,60 +23,198 @@ const PROTEIN_CATEGORIES = [
   { value: 'protease',    label: 'Protease' },
 ]
 
+const INITIAL_CATALOG_LIMIT = 10
+const INITIAL_CATALOG_CACHE_KEY = 'catalog:initial-results:v1'
+
+let cachedInitialCatalogResults
+
+export function __resetInitialCatalogCacheForTests() {
+  cachedInitialCatalogResults = undefined
+}
+
+function normalizeCatalogFilters({ search = '', category = '', minLength = '', maxLength = '' }) {
+  return {
+    search: search.trim(),
+    category: category.trim(),
+    minLength: minLength === '' ? '' : String(minLength),
+    maxLength: maxLength === '' ? '' : String(maxLength),
+  }
+}
+
+function hasActiveCatalogFilters(filters) {
+  const normalized = normalizeCatalogFilters(filters)
+  return Boolean(
+    normalized.search ||
+    normalized.category ||
+    normalized.minLength !== '' ||
+    normalized.maxLength !== '',
+  )
+}
+
+function isCatalogResultList(value) {
+  return Array.isArray(value) && value.every((item) => (
+    item &&
+    typeof item === 'object' &&
+    typeof item.proteinId === 'string' &&
+    item.proteinId.length > 0
+  ))
+}
+
+function readInitialCatalogCache() {
+  if (cachedInitialCatalogResults !== undefined) {
+    return cachedInitialCatalogResults
+  }
+
+  if (typeof window === 'undefined') {
+    cachedInitialCatalogResults = null
+    return cachedInitialCatalogResults
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(INITIAL_CATALOG_CACHE_KEY)
+    if (!raw) {
+      cachedInitialCatalogResults = null
+      return cachedInitialCatalogResults
+    }
+
+    const parsed = JSON.parse(raw)
+    cachedInitialCatalogResults = isCatalogResultList(parsed) ? parsed : null
+  } catch {
+    cachedInitialCatalogResults = null
+  }
+
+  return cachedInitialCatalogResults
+}
+
+function writeInitialCatalogCache(results) {
+  const nextResults = isCatalogResultList(results)
+    ? results.slice(0, INITIAL_CATALOG_LIMIT)
+    : []
+
+  cachedInitialCatalogResults = nextResults
+
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(
+      INITIAL_CATALOG_CACHE_KEY,
+      JSON.stringify(nextResults),
+    )
+  } catch {
+    // sessionStorage puede estar deshabilitado; la caché en memoria sigue activa
+  }
+}
+
 export function SearchSection() {
   const [query, setQuery]         = useState('')
   const [category, setCategory]   = useState('')
   const [minLength, setMinLength] = useState('')
   const [maxLength, setMaxLength] = useState('')
 
-  const [results, setResults]                   = useState([])
-  const [hasSearched, setHasSearched]           = useState(false)
-  const [isSearching, setIsSearching]           = useState(false)
-  const [loadingProteinId, setLoadingProteinId] = useState(null)
-  const [searchError, setSearchError]           = useState(null)
-  const [loadError, setLoadError]               = useState(null)
-  const [activeIndex, setActiveIndex]           = useState(-1)
+  const [initialResults, setInitialResults]                 = useState(() => readInitialCatalogCache() ?? [])
+  const [isLoadingInitialCatalog, setIsLoadingInitialCatalog] = useState(() => readInitialCatalogCache() === null)
+  const [initialCatalogError, setInitialCatalogError]       = useState(null)
+  const [filteredResults, setFilteredResults]               = useState([])
+  const [isSearchingFiltered, setIsSearchingFiltered]       = useState(false)
+  const [filteredSearchError, setFilteredSearchError]       = useState(null)
+  const [activeIndex, setActiveIndex]                       = useState(-1)
 
   const itemRefs = useRef([])
+  const latestFilteredSearchIdRef = useRef(0)
 
-  const { load } = useProteinLoader()
-  const setSelectedProteinIds = useProteinStore((state) => state.setSelectedProteinIds)
+  const catalogJobPanel = useJobStatusStore((s) => s.panelsByKey[JOB_PANEL_KEYS.catalog] ?? null)
 
-  const isBusy     = isSearching || Boolean(loadingProteinId)
-  const hasFilters = Boolean(category || minLength || maxLength)
+  const normalizedFilters = normalizeCatalogFilters({
+    search: query,
+    category,
+    minLength,
+    maxLength,
+  })
+  const { search: normalizedQuery, category: normalizedCategory } = normalizedFilters
+  const normalizedMinLength = normalizedFilters.minLength
+  const normalizedMaxLength = normalizedFilters.maxLength
+  const isFilteredMode = hasActiveCatalogFilters(normalizedFilters)
+  const visibleResults = isFilteredMode ? filteredResults : initialResults
+  const visibleError = isFilteredMode ? filteredSearchError : initialCatalogError
+  const isLoadingVisibleResults = isFilteredMode ? isSearchingFiltered : isLoadingInitialCatalog
+  const isJobActive = ACTIVE_JOB_STATUSES.has(catalogJobPanel?.status)
+  const catalogLoadingProteinId = isJobActive ? (catalogJobPanel?.subjectId ?? null) : null
+  const isProteinLoadBusy = isJobActive
+  const isResultActionBusy = isProteinLoadBusy || isLoadingVisibleResults
+  const hasFilters = isFilteredMode
 
-  const doSearch = async ({ search, category, minLength, maxLength }) => {
-    setIsSearching(true)
-    setHasSearched(true)
-    setSearchError(null)
-    setLoadError(null)
-    setResults([])
-    setActiveIndex(-1)
-
-    try {
-      const nextResults = await searchCatalogProteins({ search, category, minLength, maxLength })
-      setResults(nextResults)
-    } catch (error) {
-      setSearchError(error?.message ?? 'No se pudo consultar el catálogo')
-    } finally {
-      setIsSearching(false)
-    }
-  }
-
-  // Debounce unificado para todos los filtros
   useEffect(() => {
-    const hasAnyFilter = query.trim() || category || minLength || maxLength
-    if (!hasAnyFilter) {
-      setResults([])
-      setHasSearched(false)
-      setSearchError(null)
+    const cachedResults = readInitialCatalogCache()
+    if (cachedResults !== null) {
+      setInitialResults(cachedResults)
+      setInitialCatalogError(null)
+      setIsLoadingInitialCatalog(false)
       return
     }
-    const timer = setTimeout(() => {
-      doSearch({ search: query, category, minLength, maxLength })
+
+    let cancelled = false
+
+    const loadInitialCatalog = async () => {
+      setIsLoadingInitialCatalog(true)
+      setInitialCatalogError(null)
+
+      try {
+        const nextResults = await searchCatalogProteins({ limit: INITIAL_CATALOG_LIMIT })
+        if (cancelled) return
+        setInitialResults(nextResults)
+        writeInitialCatalogCache(nextResults)
+      } catch (error) {
+        if (cancelled) return
+        setInitialCatalogError(error?.message ?? 'No se pudo consultar el catálogo')
+      } finally {
+        if (!cancelled) {
+          setIsLoadingInitialCatalog(false)
+        }
+      }
+    }
+
+    loadInitialCatalog()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isFilteredMode) {
+      latestFilteredSearchIdRef.current += 1
+      setFilteredResults([])
+      setFilteredSearchError(null)
+      setIsSearchingFiltered(false)
+      setActiveIndex(-1)
+      return
+    }
+
+    const searchId = ++latestFilteredSearchIdRef.current
+    setIsSearchingFiltered(true)
+    setFilteredSearchError(null)
+    setFilteredResults([])
+    setActiveIndex(-1)
+
+    const timer = setTimeout(async () => {
+      try {
+        const nextResults = await searchCatalogProteins(normalizedFilters)
+        if (searchId !== latestFilteredSearchIdRef.current) return
+        setFilteredResults(nextResults)
+      } catch (error) {
+        if (searchId !== latestFilteredSearchIdRef.current) return
+        setFilteredSearchError(error?.message ?? 'No se pudo consultar el catálogo')
+      } finally {
+        if (searchId === latestFilteredSearchIdRef.current) {
+          setIsSearchingFiltered(false)
+        }
+      }
     }, 350)
-    return () => clearTimeout(timer)
-  }, [query, category, minLength, maxLength]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [isFilteredMode, normalizedQuery, normalizedCategory, normalizedMinLength, normalizedMaxLength])
 
   const handleQueryChange = (e) => {
     setQuery(e.target.value)
@@ -85,13 +224,13 @@ export function SearchSection() {
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIndex(i => Math.min(i + 1, results.length - 1))
+      setActiveIndex(i => Math.min(i + 1, visibleResults.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActiveIndex(i => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (activeIndex >= 0 && !isBusy) handleSelectProtein(results[activeIndex])
+      if (activeIndex >= 0 && !isResultActionBusy) handleSelectProtein(visibleResults[activeIndex])
     }
   }
 
@@ -101,32 +240,25 @@ export function SearchSection() {
     }
   }, [activeIndex])
 
+  useEffect(() => () => {
+    latestFilteredSearchIdRef.current += 1
+  }, [])
+
   const clearFilters = () => {
+    setQuery('')
     setCategory('')
     setMinLength('')
     setMaxLength('')
+    setActiveIndex(-1)
   }
 
   const handleSelectProtein = async (result) => {
-    if (!result?.proteinId || loadingProteinId) return
-
-    setLoadingProteinId(result.proteinId)
-    setLoadError(null)
+    if (!result?.proteinId || isResultActionBusy) return
 
     try {
-      const detail = await getCatalogProteinDetail(result.proteinId)
-      if (!detail.fastaReady) {
-        throw new ApiError('La respuesta del detalle no incluye fasta_ready')
-      }
-
-      const loadedProteinId = await load(detail.fastaReady)
-      if (loadedProteinId) {
-        setSelectedProteinIds([loadedProteinId])
-      }
-    } catch (error) {
-      setLoadError(error?.message ?? 'No se pudo cargar la proteína seleccionada')
-    } finally {
-      setLoadingProteinId(null)
+      await loadCatalogProtein(result.proteinId)
+    } catch {
+      // El servicio ya refleja el error en el store global del catálogo.
     }
   }
 
@@ -139,11 +271,13 @@ export function SearchSection() {
     'text-[11px] font-medium text-slate-400 uppercase tracking-wide'
 
   const renderResults = () => {
-    if (isSearching) {
+    if (isLoadingVisibleResults) {
       return (
         <div className="flex-1 overflow-auto mt-4 border border-slate-200 rounded-none bg-slate-50 p-4 flex flex-col items-center justify-center text-center text-slate-500">
           <Loader2 size={28} className="mb-3 animate-spin text-[#e31e24]" />
-          <p className="font-medium text-slate-700">Consultando catalogo...</p>
+          <p className="font-medium text-slate-700">
+            {isFilteredMode ? 'Consultando catálogo...' : 'Cargando catálogo...'}
+          </p>
           <p className="mt-2 text-xs text-slate-500">
             La primera petición puede tardar hasta 30 s si la API estaba en reposo.
           </p>
@@ -151,30 +285,23 @@ export function SearchSection() {
       )
     }
 
-    if (searchError) {
+    if (visibleError) {
       return (
         <div className="flex-1 overflow-auto mt-4 border border-rose-200 rounded-none bg-rose-50 p-4 flex flex-col items-center justify-center text-center text-rose-700">
           <p className="font-medium">No se pudo consultar el catálogo.</p>
-          <p className="mt-2 text-xs">{searchError}</p>
+          <p className="mt-2 text-xs">{visibleError}</p>
         </div>
       )
     }
 
-    if (!hasSearched) {
-      return (
-        <div className="flex-1 overflow-auto mt-4 border border-slate-100 rounded-none bg-slate-50 p-4 flex flex-col items-center justify-center text-center text-slate-400">
-          <Search size={32} className="mb-2 opacity-20" />
-          <p>Los resultados aparecerán aquí</p>
-        </div>
-      )
-    }
-
-    if (results.length === 0) {
+    if (visibleResults.length === 0) {
       return (
         <div className="flex-1 overflow-auto mt-4 border border-slate-100 rounded-none bg-slate-50 p-4 flex flex-col items-center justify-center text-center text-slate-500">
           <p className="font-medium text-slate-700">Sin resultados</p>
           <p className="mt-2 text-xs">
-            No se encontraron proteínas con los filtros aplicados.
+            {isFilteredMode
+              ? 'No se encontraron proteínas con los filtros aplicados.'
+              : 'No hay proteínas disponibles para el listado inicial.'}
           </p>
         </div>
       )
@@ -183,8 +310,8 @@ export function SearchSection() {
     return (
       <div className="flex-1 overflow-auto mt-4 border border-slate-200 rounded-none bg-white shadow-sm">
         <div className="flex flex-col divide-y divide-slate-100">
-          {results.map((result, index) => {
-            const isLoadingThisProtein = loadingProteinId === result.proteinId
+          {visibleResults.map((result, index) => {
+            const isLoadingThisProtein = catalogLoadingProteinId === result.proteinId
             const isHighlighted = index === activeIndex
             return (
               <button
@@ -192,7 +319,7 @@ export function SearchSection() {
                 ref={el => (itemRefs.current[index] = el)}
                 type="button"
                 onClick={() => handleSelectProtein(result)}
-                disabled={isBusy}
+                disabled={isResultActionBusy}
                 className={`w-full text-left p-4 transition-colors disabled:cursor-wait disabled:opacity-70 ${
                   isHighlighted
                     ? 'bg-[#fde8e8]/70 border-l-2 border-l-[#e31e24]'
@@ -269,7 +396,7 @@ export function SearchSection() {
           value={query}
           onChange={handleQueryChange}
           onKeyDown={handleKeyDown}
-          disabled={isBusy}
+          disabled={isProteinLoadBusy}
         />
       </form>
 
@@ -279,7 +406,7 @@ export function SearchSection() {
         <select
           value={category}
           onChange={e => setCategory(e.target.value)}
-          disabled={isBusy}
+          disabled={isProteinLoadBusy}
           className={inputClass}
         >
           <option value="">All categories</option>
@@ -299,7 +426,7 @@ export function SearchSection() {
             placeholder="Min"
             value={minLength}
             onChange={e => setMinLength(e.target.value)}
-            disabled={isBusy}
+            disabled={isProteinLoadBusy}
             className={inputClass}
           />
           <span className="text-slate-400 text-xs shrink-0">–</span>
@@ -309,7 +436,7 @@ export function SearchSection() {
             placeholder="Max"
             value={maxLength}
             onChange={e => setMaxLength(e.target.value)}
-            disabled={isBusy}
+            disabled={isProteinLoadBusy}
             className={inputClass}
           />
         </div>
@@ -321,7 +448,7 @@ export function SearchSection() {
           <button
             type="button"
             onClick={clearFilters}
-            disabled={isBusy}
+            disabled={isProteinLoadBusy}
             className="text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40"
           >
             ✕ Clear filters
@@ -329,28 +456,7 @@ export function SearchSection() {
         </div>
       ) : null}
 
-      {/* Loading protein indicator */}
-      {loadingProteinId ? (
-        <div className="border border-slate-200 rounded-none p-3 bg-slate-50 shadow-sm text-xs text-slate-600">
-          <div className="flex items-center gap-2 font-medium text-slate-700">
-            <Loader2 size={14} className="animate-spin text-[#e31e24]" />
-            Loading selected protein...
-          </div>
-          <p className="mt-2">
-            Se consulta el detalle, se usa <code>fasta_ready</code> y se lanza el flujo actual de carga.
-          </p>
-          <p className="mt-1 text-slate-500">
-            Si la API estaba fría, esta operación puede tardar algunos segundos.
-          </p>
-        </div>
-      ) : null}
-
-      {/* Load error */}
-      {loadError ? (
-        <div className="border border-rose-200 rounded-none p-3 bg-rose-50 text-rose-700 text-xs">
-          {loadError}
-        </div>
-      ) : null}
+      <PersistentJobStatusPanel panelKey={JOB_PANEL_KEYS.catalog} />
 
       {renderResults()}
     </div>

@@ -1,7 +1,9 @@
 import { API_BASE_URL } from '@/lib/appConfig';
 import { validateApiResponse } from '@/lib/apiSchema';
+import { normalizeJobResources } from '@/lib/jobResources'
 
 const DEFAULT_POLL_INTERVAL_MS = 2000
+const TERMINAL_JOB_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED'])
 
 export class ApiError extends Error {
   constructor(message, { status, cause } = {}) {
@@ -34,14 +36,17 @@ async function request(path, init = {}) {
  * Crea un job de predicción a partir de una secuencia FASTA.
  *
  * @param {string} fastaSequence  Texto FASTA completo (con cabecera ">...")
+ * @param {{ gpus?: number, cpus?: number, memory_gb?: number, max_runtime_seconds?: number }} [jobResources]
  * @returns {Promise<{ jobId: string }>}
  */
-export async function submitJob(fastaSequence) {
+export async function submitJob(fastaSequence, jobResources) {
+  const normalizedResources = jobResources ? normalizeJobResources(jobResources) : null
   const raw = await request('/jobs/submit', {
     method: 'POST',
     body: JSON.stringify({
       fasta_sequence: fastaSequence,
       fasta_filename: 'sequence.fasta',
+      ...(normalizedResources ?? {}),
     }),
   })
   const jobId = raw?.job_id
@@ -88,7 +93,7 @@ function normalizeCatalogDetail(raw) {
 /**
  * Busca proteínas en el catálogo público de la API.
  *
- * @param {{ search?: string, category?: string, minLength?: string|number, maxLength?: string|number }} filters
+ * @param {{ search?: string, category?: string, minLength?: string|number, maxLength?: string|number, limit?: number }} filters
  * @returns {Promise<Array<{
  *   proteinId: string,
  *   proteinName: string,
@@ -100,22 +105,33 @@ function normalizeCatalogDetail(raw) {
  *   description: string
  * }>>}
  */
-export async function searchCatalogProteins({ search = '', category = '', minLength = '', maxLength = '' } = {}) {
+export async function searchCatalogProteins({
+  search = '',
+  category = '',
+  minLength = '',
+  maxLength = '',
+  limit,
+} = {}) {
   const params = new URLSearchParams()
+  const normalizedLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
+    ? Math.floor(Number(limit))
+    : null
+
   if (search.trim())    params.set('search',     search.trim())
   if (category.trim())  params.set('category',   category.trim())
   if (minLength !== '') params.set('min_length', String(minLength))
   if (maxLength !== '') params.set('max_length', String(maxLength))
+  if (normalizedLimit)  params.set('limit',      String(normalizedLimit))
 
-  if (!params.toString()) return []
-
-  const raw = await request(`/proteins/?${params.toString()}`)
+  const qs = params.toString()
+  const raw = await request(qs ? `/proteins/?${qs}` : `/proteins/`)
 
   if (!Array.isArray(raw)) {
     throw new ApiError('searchCatalogProteins: respuesta inválida')
   }
 
-  return raw.map(normalizeCatalogSummary).filter(Boolean)
+  const results = raw.map(normalizeCatalogSummary).filter(Boolean)
+  return normalizedLimit ? results.slice(0, normalizedLimit) : results
 }
 
 /**
@@ -193,17 +209,18 @@ const waitWithAbort = (ms, signal) =>
   })
 
 /**
- * Polling hasta que el job alcanza un estado terminal (COMPLETED/FAILED).
+ * Polling hasta que el job alcanza un estado terminal (COMPLETED/FAILED/CANCELLED).
  * Respeta AbortSignal para cancelación limpia.
  *
  * @param {string} jobId
- * @param {{ intervalMs?: number, signal?: AbortSignal }} [options]
+ * @param {{ intervalMs?: number, signal?: AbortSignal, onStatusChange?: (status: string) => void }} [options]
  */
-export async function pollJob(jobId, { intervalMs = DEFAULT_POLL_INTERVAL_MS, signal } = {}) {
+export async function pollJob(jobId, { intervalMs = DEFAULT_POLL_INTERVAL_MS, signal, onStatusChange } = {}) {
   for (;;) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const job = await getJob(jobId)
-    if (job.status === 'COMPLETED' || job.status === 'FAILED') return job
+    onStatusChange?.(job.status)
+    if (TERMINAL_JOB_STATUSES.has(job.status)) return job
     await waitWithAbort(intervalMs, signal)
   }
 }
