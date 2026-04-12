@@ -14,19 +14,49 @@ function plddtColor(score) {
   return '#FF7D45'                 // Naranja
 }
 
+/** Texto descriptivo del banner según el modo activo y los loci pendientes. */
+function getModeBanner(analysisMode, pendingCount) {
+  if (analysisMode === 'distance') {
+    return pendingCount === 0
+      ? 'Modo Medición · Haz clic en el primer átomo'
+      : 'Modo Medición · Haz clic en el segundo átomo';
+  }
+  if (analysisMode === 'hbonds') {
+    return 'Puentes de Hidrógeno · Mostrando interacciones no-covalentes';
+  }
+  return null;
+}
+
 /**
  * Contenedor visual para el visor Mol*:
  *  - El div `containerRef` recibe el <canvas> que Mol* crea internamente.
  *  - La rejilla de puntos se superpone sobre el canvas (pointer-events-none).
- *  - `tooltip` (opcional): { code, seqId, chainId, plddt, x, y }
+ *  - `tooltip` (opcional): { code, seqId, chainId, plddt }
+ *  - `analysisMode` (opcional): modo activo ('distance' | 'hbonds' | null)
+ *  - `pendingCount`: número de loci recogidos para la medición en curso
+ *  - `onExitMode`: callback para salir del modo activo
  */
-export default function ViewerCanvas({ containerRef, tooltip, hasSelection, children }) {
+export default function ViewerCanvas({
+  containerRef,
+  tooltip,
+  hasSelection,
+  analysisMode,
+  pendingCount = 0,
+  hasHoverTarget,
+  onExitMode,
+  children,
+}) {
   const aminoInfo = tooltip ? getAminoAcidInfo(tooltip.code) : null;
+  const modeBanner = getModeBanner(analysisMode, pendingCount);
+
+  // Calcula el cursor dinámico según el estado y modo
+  const isTargeting = analysisMode === 'distance' && hasHoverTarget;
+  const cursorClass = isTargeting ? '[&_canvas]:!cursor-crosshair cursor-crosshair' : '';
 
   return (
     <div
       data-role="molecular-viewer"
-      className="w-full h-full relative isolate bg-white flex items-center justify-center min-h-[500px]"
+      className={`w-full h-full relative isolate bg-white flex items-center justify-center min-h-[500px] ${cursorClass}`}
     >
       {/* Mol* inyecta su propio <canvas> aquí */}
       <div
@@ -41,9 +71,9 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
           aria-hidden="true"
           className="absolute inset-0 z-[1] flex items-center justify-center pointer-events-none select-none animate-in fade-in duration-700"
         >
-          <img 
-            src="/src/assets/logo.png" 
-            alt="Camelia Logo" 
+          <img
+            src="/src/assets/logo.png"
+            alt="Camelia Logo"
             className="w-64 h-64 md:w-96 md:h-96 object-contain opacity-[0.07] grayscale contrast-125"
           />
         </div>
@@ -52,8 +82,33 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
       {/* Rejilla decorativa de puntos */}
       <div className="absolute inset-0 pointer-events-none opacity-15 z-10" style={DOT_GRID_STYLE} />
 
+      {/* Banner de modo análisis activo */}
+      <div
+        className={`absolute top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-in-out ${
+          modeBanner
+            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
+        }`}
+      >
+        {modeBanner && (
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-sky-500/40 text-sky-100 text-xs px-3.5 py-2 rounded-full shadow-xl backdrop-blur-sm whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse flex-shrink-0" />
+            <span>{modeBanner}</span>
+            {onExitMode && (
+              <button
+                onClick={onExitMode}
+                className="ml-1.5 flex-shrink-0 text-sky-400 hover:text-white transition-colors leading-none"
+                title="Salir del modo (Esc)"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Tooltip — posicionado dentro del visor (absolute) para aislamiento en split-screen */}
-      <div 
+      <div
         className={`pointer-events-none absolute bottom-6 right-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
       >
         {tooltip && aminoInfo && (
@@ -82,8 +137,8 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
               <div className="col-span-2 flex flex-col pt-0.5">
                 <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Propiedades</span>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                   <div className="w-2 h-2 rounded-none shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
-                   <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
+                  <div className="w-2 h-2 rounded-none shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
+                  <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
                 </div>
               </div>
             </div>
@@ -97,12 +152,12 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
                 </span>
               </div>
               <div className="w-full bg-slate-100 h-2 rounded-none overflow-hidden shadow-inner">
-                <div 
-                  className="h-full transition-all duration-1000 ease-out shadow-sm" 
-                  style={{ 
-                    width: `${tooltip.plddt}%`, 
-                    backgroundColor: plddtColor(tooltip.plddt) 
-                  }} 
+                <div
+                  className="h-full transition-all duration-1000 ease-out shadow-sm"
+                  style={{
+                    width: `${tooltip.plddt}%`,
+                    backgroundColor: plddtColor(tooltip.plddt)
+                  }}
                 />
               </div>
             </div>

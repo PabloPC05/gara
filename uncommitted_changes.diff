@@ -1,0 +1,780 @@
+diff --git a/src/components/molecular/MolecularViewer.jsx b/src/components/molecular/MolecularViewer.jsx
+index 70e22a1..ba2f214 100644
+--- a/src/components/molecular/MolecularViewer.jsx
++++ b/src/components/molecular/MolecularViewer.jsx
+@@ -4,6 +4,7 @@ import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme';
+ import { useProteinStore } from '../../stores/useProteinStore';
+ import { useUIStore } from '../../stores/useUIStore';
+ import { useMolstarMouseControls } from '../../hooks/useMolstarMouseControls';
++import useAnalysisStore from '../../stores/useAnalysisStore';
+ import ViewerCanvas from './ViewerCanvas';
+ 
+ // --- Importaciones Mol* ---
+@@ -27,59 +28,62 @@ import {
+  *  2. Sincronizar las proteínas del store con las estructuras cargadas en Mol*
+  *  3. Reaccionar a cambios de representación, iluminación, fondo y residuo enfocado
+  *  4. Gestionar el tooltip de hover sobre residuos
++ *  5. Gestionar modos de análisis (medición de distancias, puentes de hidrógeno)
+  *
+- * Delega en:
+- *  - structurePipeline.js → carga/descarga de estructuras, transformaciones
+- *  - useMolstarMouseControls → eventos de ratón (picking, drag)
+- *  - ViewerCanvas → capa visual React (grid, tooltip, overlay)
++ * Estrategia de picking para medición de distancias:
++ *  El hover de Mol* ya computa de forma fiable el átomo bajo el cursor
++ *  (lo sabemos porque el tooltip funciona). Almacenamos el último loci
++ *  del hover en un ref y lo usamos cuando el usuario hace clic, en lugar
++ *  de intentar relanzar canvas3d.identify() en el evento mousedown (que
++ *  puede tener problemas de sincronización con el pick buffer del GPU).
+  */
+ export default function MolecularViewer({ proteinId }) {
+   // ── Store: proteínas ───────────────────────────────────────────────────────
+-  const proteinsById          = useProteinStore((s) => s.proteinsById);       // catálogo completo
++  const proteinsById          = useProteinStore((s) => s.proteinsById);
+   const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
+ 
+-  // Array derivado de la prop — mantiene compatibilidad con syncStructures y el ref interno
+   const proteinIdArray = proteinId ? [proteinId] : [];
+ 
+   // ── Store: UI ──────────────────────────────────────────────────────────────
+-  const viewerRepresentation = useUIStore((s) => s.viewerRepresentation); // cartoon | ball-and-stick | …
+-  const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
+-  const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
++  const viewerRepresentation    = useUIStore((s) => s.viewerRepresentation);
++  const viewerLighting          = useUIStore((s) => s.viewerLighting);
++  const sceneBackground         = useUIStore((s) => s.viewerBackground);
+   const focusedResidueByProtein = useUIStore((s) => s.focusedResidueByProtein);
+   const focusedResidue          = proteinId ? focusedResidueByProtein[proteinId] : null;
+ 
+-  // ── Live refs ──────────────────────────────────────────────────────────────
+-  // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
+-  // de React, para evitar stale closures en efectos de larga duración.
++  // ── Store: análisis ────────────────────────────────────────────────────────
++  const analysisMode = useAnalysisStore((s) => s.mode);
++  const pendingLoci  = useAnalysisStore((s) => s.pendingLoci);
++  const clearTrigger = useAnalysisStore((s) => s.clearTrigger);
++  const clearAll     = useAnalysisStore((s) => s.clearAll);
++
++  // ── Refs ───────────────────────────────────────────────────────────────────
+   const selectedIdsRef  = useRef(proteinIdArray);
+   const proteinsByIdRef = useRef(proteinsById);
+   const reprTypeRef     = useRef(viewerRepresentation);
+-  const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
++  const entriesRef      = useRef(new Map());
++
++  // Loci del átomo/residuo actualmente bajo el cursor.
++  // Actualizado por la suscripción al hover de Mol* y usado por el handler de click.
++  const lastHoverLociRef = useRef(null);
++
++  // Refs a las representaciones de H-bonds añadidas dinámicamente
++  const hbondReprRefs = useRef([]);
+ 
+   useEffect(() => { selectedIdsRef.current  = proteinIdArray; }, [proteinId]); // eslint-disable-line react-hooks/exhaustive-deps
+-  useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
++  useEffect(() => { proteinsByIdRef.current = proteinsById; },   [proteinsById]);
+   useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
+ 
+-  // ── Tooltip de residuos (hover + selección) ───────────────────────────────
+-  // - hoverTooltip: prioriza lo que está bajo el cursor en tiempo real.
+-  // - selectedTooltip: mantiene visible la info del residuo seleccionado.
+-  const [hoverTooltip, setHoverTooltip] = useState(null);
++  // ── Tooltip ────────────────────────────────────────────────────────────────
++  const [hoverTooltip,    setHoverTooltip]    = useState(null);
+   const [selectedTooltip, setSelectedTooltip] = useState(null);
+   const tooltip = hoverTooltip ?? selectedTooltip;
+ 
+   // ── 1. Inicialización del plugin ───────────────────────────────────────────
+-  // useMolstarViewer crea el PluginContext, monta el canvas WebGL y llama a
+-  // setup() una sola vez tras la inicialización.
+   const { containerRef, pluginRef } = useMolstarViewer({
+     setup: async (plugin) => {
+-      // Registrar el tema de color pLDDT de AlphaFold (azul→cyan→amarillo→naranja)
+       registerAlphafoldPlddtTheme(plugin);
+ 
+-      // Configurar iluminación inicial y desactivar niebla/clipping para que
+-      // la proteína se renderice completa sin desvanecerse en los extremos.
+-      // - cameraFog: off         → sin niebla al fondo
+-      // - cameraClipping.far: false → sin corte por plano far
+-      // - cameraClipping.radius: 0  → plano near al máximo del campo de visión
+       plugin.canvas3d?.setProps({
+         ...LIGHTING_PRESETS.ao,
+         renderer: {
+@@ -88,44 +92,47 @@ export default function MolecularViewer({ proteinId }) {
+         },
+       });
+ 
+-      // Cargar las proteínas que ya estuvieran seleccionadas al montar el componente
+       const dirty = await syncStructures(
+         plugin, entriesRef.current,
+         proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
+       );
+       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
+ 
+-      // Suscripción al evento hover de Mol*:
+-      // Cada vez que el cursor pasa sobre un átomo, extraemos el aminoácido,
+-      // la posición en la cadena y el pLDDT para mostrar en el tooltip.
++      // Suscripción al hover de Mol*.
++      // También almacenamos el loci en lastHoverLociRef para usarlo en el
++      // handler de click de medición de distancias (ver useEffect abajo).
+       const hoverSub = plugin.behaviors.interaction.hover.subscribe(({ current }) => {
+         if (!current?.loci || current.loci.kind !== 'element-loci') {
+           setHoverTooltip(null);
++          lastHoverLociRef.current = null;
+           return;
+         }
+         try {
+           const loc = StructureElement.Loci.getFirstLocation(current.loci);
+-          if (!loc) { setHoverTooltip(null); return; }
+-
++          if (!loc) {
++            setHoverTooltip(null);
++            lastHoverLociRef.current = null;
++            return;
++          }
++          lastHoverLociRef.current = current.loci; // ← clave para la medición
+           setHoverTooltip({
+-            code:    StructureProperties.residue.auth_comp_id(loc),    // p.ej. "GLY"
+-            seqId:   StructureProperties.residue.auth_seq_id(loc),     // nº en la cadena
+-            chainId: StructureProperties.chain.auth_asym_id(loc),      // "A", "B", …
+-            plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1), // confianza AlphaFold
++            code:    StructureProperties.residue.auth_comp_id(loc),
++            seqId:   StructureProperties.residue.auth_seq_id(loc),
++            chainId: StructureProperties.chain.auth_asym_id(loc),
++            plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1),
+           });
+         } catch (_) {
+           setHoverTooltip(null);
++          lastHoverLociRef.current = null;
+         }
+       });
+ 
+-      // Devolvemos la limpieza de la suscripción para cuando se desmonte
+       return () => hoverSub.unsubscribe();
+     },
+     deps: [],
+   });
+ 
+-  // ── 2. Controles de ratón ──────────────────────────────────────────────────
+-  // Picking (clic sobre átomo → selecciona proteína) y drag (rota estructura).
++  // ── 2. Controles de ratón (selección + drag) ───────────────────────────────
+   useMolstarMouseControls({
+     containerRef,
+     pluginRef,
+@@ -134,11 +141,52 @@ export default function MolecularViewer({ proteinId }) {
+     setSelectedProteinIds,
+   });
+ 
+-  // ── 3. Efectos reactivos ───────────────────────────────────────────────────
++  // ── 3. Medición de distancias — click handler ──────────────────────────────
++  // Usamos el loci almacenado por el hover (siempre fiable porque el tooltip
++  // funciona) en lugar de relanzar canvas3d.identify() en el click, que puede
++  // fallar por sincronización con el pick buffer del GPU.
++  //
++  // Este useEffect escucha el evento 'click' del DOM en el container.
++  // En modo distancia, useMolstarMouseControls devuelve sin preventDefault,
++  // por lo que el evento 'click' del navegador llega aquí correctamente.
++  useEffect(() => {
++    const container = containerRef.current;
++    if (!container) return;
++
++    const handleClick = () => {
++      const { mode, pendingLoci: pending, addPendingLocus, clearPendingLoci } =
++        useAnalysisStore.getState();
++
++      if (mode !== 'distance') return;
++
++      const loci = lastHoverLociRef.current;
++      if (!loci) return; // cursor no está sobre ningún residuo
++
++      const plugin = pluginRef.current;
++      if (!plugin) return;
++
++      if (pending.length === 0) {
++        // Primer punto: guardar y resaltar visualmente en el visor
++        addPendingLocus(loci);
++        plugin.managers.interactivity.lociSelects.selectOnly({ loci });
++      } else {
++        // Segundo punto: crear la medida y limpiar selección temporal
++        try {
++          plugin.managers.structure.measurement.addDistance(pending[0], loci);
++        } catch (err) {
++          console.warn('[Analysis] addDistance failed:', err);
++        }
++        plugin.managers.interactivity.lociSelects.deselectAll();
++        clearPendingLoci();
++      }
++    };
++
++    container.addEventListener('click', handleClick);
++    return () => container.removeEventListener('click', handleClick);
++  }, [containerRef, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
++
++  // ── 4. Efectos reactivos ───────────────────────────────────────────────────
+ 
+-  // Sincronización de estructuras:
+-  // Cuando cambia el catálogo de proteínas o la selección, syncStructures elimina
+-  // lo que ya no está y carga lo que falta. Si hubo cambios, resetea la cámara.
+   useEffect(() => {
+     const plugin = pluginRef.current;
+     if (!plugin) return;
+@@ -154,77 +202,117 @@ export default function MolecularViewer({ proteinId }) {
+     return () => { cancelled = true; };
+   }, [proteinsById, proteinId, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
+ 
+-  // Color de fondo del canvas (hex → Color de Mol*)
+   useEffect(() => {
+     pluginRef.current?.canvas3d?.setProps({
+       renderer: { backgroundColor: Color.fromHexStyle(sceneBackground) },
+     });
+   }, [sceneBackground, pluginRef]);
+ 
+-  // Tipo de representación visual (cartoon, ball-and-stick, surface…)
+-  // Actualiza todas las estructuras cargadas simultáneamente.
+   useEffect(() => {
+     const plugin = pluginRef.current;
+     if (!plugin || entriesRef.current.size === 0) return;
+     updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error);
+   }, [viewerRepresentation, pluginRef]);
+ 
+-  // Residuo enfocado desde la FastaBar:
+-  // Selecciona el residuo en Mol* y mueve la cámara hacia él con animación.
+   useEffect(() => {
+     const plugin = pluginRef.current;
+     if (!plugin || entriesRef.current.size === 0) {
+       setSelectedTooltip(null);
+       return;
+     }
+-
+     if (!focusedResidue) {
+       clearResidueSelection(plugin);
+       setSelectedTooltip(null);
+       return;
+     }
+-
+-    if (!proteinId) {
+-      setSelectedTooltip(null);
+-      return;
+-    }
++    if (!proteinId) { setSelectedTooltip(null); return; }
+     const entry = entriesRef.current.get(proteinId);
+-    if (!entry) {
+-      setSelectedTooltip(null);
+-      return;
+-    }
++    if (!entry)   { setSelectedTooltip(null); return; }
+ 
+     const loci = selectResidueBySeqId(plugin, entry, focusedResidue.seqId);
+-    const loc = loci ? StructureElement.Loci.getFirstLocation(loci) : null;
+-    if (!loc) {
+-      setSelectedTooltip(null);
+-      return;
+-    }
++    const loc  = loci ? StructureElement.Loci.getFirstLocation(loci) : null;
++    if (!loc)  { setSelectedTooltip(null); return; }
+ 
+     const plddt = StructureProperties.atom.B_iso_or_equiv(loc);
+     setSelectedTooltip({
+-      code: StructureProperties.residue.auth_comp_id(loc),
+-      seqId: StructureProperties.residue.auth_seq_id(loc),
++      code:    StructureProperties.residue.auth_comp_id(loc),
++      seqId:   StructureProperties.residue.auth_seq_id(loc),
+       chainId: StructureProperties.chain.auth_asym_id(loc),
+-      plddt: Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
++      plddt:   Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
+     });
+   }, [focusedResidue, pluginRef, proteinId]);
+ 
+-  // Esquema de iluminación (ao / flat / studio):
+-  // Aplica el preset completo, incluyendo oclusión ambiental, sombras,
+-  // intensidades de luz, niebla desactivada y clipping sin corte.
+   useEffect(() => {
+     const plugin = pluginRef.current;
+     if (!plugin) return;
+     plugin.canvas3d?.setProps(LIGHTING_PRESETS[viewerLighting] ?? LIGHTING_PRESETS.ao);
+   }, [viewerLighting, pluginRef]);
+ 
+-  // ── 4. Props para ViewerCanvas ─────────────────────────────────────────────
++  // ── 5. Análisis: puentes de hidrógeno ──────────────────────────────────────
++  useEffect(() => {
++    const plugin = pluginRef.current;
++    if (!plugin || entriesRef.current.size === 0) return;
++
++    if (analysisMode !== 'hbonds') {
++      if (hbondReprRefs.current.length > 0) {
++        const builder = plugin.build();
++        hbondReprRefs.current.forEach((ref) => {
++          try { builder.delete(ref); } catch (_) { /* huérfana */ }
++        });
++        builder.commit().catch(console.error);
++        hbondReprRefs.current = [];
++      }
++      return;
++    }
++
++    (async () => {
++      const newRefs = [];
++      for (const [, entry] of entriesRef.current) {
++        try {
++          const ref = await plugin.builders.structure.representation.addRepresentation(
++            entry.transformedRef,
++            { type: 'interactions' },
++          );
++          if (ref?.ref) newRefs.push(ref.ref);
++        } catch (e) {
++          console.warn('[Analysis] No se pudo añadir repr de interacciones:', e);
++        }
++      }
++      hbondReprRefs.current = newRefs;
++    })();
++  }, [analysisMode, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
++
++  // ── 6. Análisis: limpiar todo ──────────────────────────────────────────────
++  useEffect(() => {
++    if (clearTrigger === 0) return;
++    const plugin = pluginRef.current;
++    if (!plugin) return;
++
++    try { plugin.managers.structure.measurement.clear(); }
++    catch (e) { console.warn('[Analysis] measurement.clear() failed:', e); }
++
++    plugin.managers.interactivity.lociSelects.deselectAll();
++
++    if (hbondReprRefs.current.length > 0) {
++      const builder = plugin.build();
++      hbondReprRefs.current.forEach((ref) => {
++        try { builder.delete(ref); } catch (_) { /* huérfana */ }
++      });
++      builder.commit().catch(console.error);
++      hbondReprRefs.current = [];
++    }
++  }, [clearTrigger, pluginRef]);
++
++  // ── 7. Props para ViewerCanvas ─────────────────────────────────────────────
+   return (
+     <ViewerCanvas
+       containerRef={containerRef}
+       tooltip={tooltip}
+       hasSelection={!!proteinId}
++      analysisMode={analysisMode}
++      pendingCount={pendingLoci.length}
++      hasHoverTarget={!!hoverTooltip}
++      onExitMode={clearAll}
+     >
+       <div />
+     </ViewerCanvas>
+diff --git a/src/components/molecular/ViewerCanvas.jsx b/src/components/molecular/ViewerCanvas.jsx
+index 51befff..d406cff 100644
+--- a/src/components/molecular/ViewerCanvas.jsx
++++ b/src/components/molecular/ViewerCanvas.jsx
+@@ -14,14 +14,39 @@ function plddtColor(score) {
+   return '#FF7D45'                 // Naranja
+ }
+ 
++/** Texto descriptivo del banner según el modo activo y los loci pendientes. */
++function getModeBanner(analysisMode, pendingCount) {
++  if (analysisMode === 'distance') {
++    return pendingCount === 0
++      ? 'Modo Medición · Haz clic en el primer átomo'
++      : 'Modo Medición · Haz clic en el segundo átomo';
++  }
++  if (analysisMode === 'hbonds') {
++    return 'Puentes de Hidrógeno · Mostrando interacciones no-covalentes';
++  }
++  return null;
++}
++
+ /**
+  * Contenedor visual para el visor Mol*:
+  *  - El div `containerRef` recibe el <canvas> que Mol* crea internamente.
+  *  - La rejilla de puntos se superpone sobre el canvas (pointer-events-none).
+- *  - `tooltip` (opcional): { code, seqId, chainId, plddt, x, y }
++ *  - `tooltip` (opcional): { code, seqId, chainId, plddt }
++ *  - `analysisMode` (opcional): modo activo ('distance' | 'hbonds' | null)
++ *  - `pendingCount`: número de loci recogidos para la medición en curso
++ *  - `onExitMode`: callback para salir del modo activo
+  */
+-export default function ViewerCanvas({ containerRef, tooltip, hasSelection, children }) {
++export default function ViewerCanvas({
++  containerRef,
++  tooltip,
++  hasSelection,
++  analysisMode,
++  pendingCount = 0,
++  onExitMode,
++  children,
++}) {
+   const aminoInfo = tooltip ? getAminoAcidInfo(tooltip.code) : null;
++  const modeBanner = getModeBanner(analysisMode, pendingCount);
+ 
+   return (
+     <div
+@@ -41,9 +66,9 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
+           aria-hidden="true"
+           className="absolute inset-0 z-[1] flex items-center justify-center pointer-events-none select-none animate-in fade-in duration-700"
+         >
+-          <img 
+-            src="/src/assets/logo.png" 
+-            alt="Camelia Logo" 
++          <img
++            src="/src/assets/logo.png"
++            alt="Camelia Logo"
+             className="w-64 h-64 md:w-96 md:h-96 object-contain opacity-[0.07] grayscale contrast-125"
+           />
+         </div>
+@@ -52,8 +77,33 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
+       {/* Rejilla decorativa de puntos */}
+       <div className="absolute inset-0 pointer-events-none opacity-15 z-10" style={DOT_GRID_STYLE} />
+ 
++      {/* Banner de modo análisis activo */}
++      <div
++        className={`absolute top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-in-out ${
++          modeBanner
++            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
++            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
++        }`}
++      >
++        {modeBanner && (
++          <div className="flex items-center gap-2 bg-slate-900/90 border border-sky-500/40 text-sky-100 text-xs px-3.5 py-2 rounded-full shadow-xl backdrop-blur-sm whitespace-nowrap">
++            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse flex-shrink-0" />
++            <span>{modeBanner}</span>
++            {onExitMode && (
++              <button
++                onClick={onExitMode}
++                className="ml-1.5 flex-shrink-0 text-sky-400 hover:text-white transition-colors leading-none"
++                title="Salir del modo (Esc)"
++              >
++                ✕
++              </button>
++            )}
++          </div>
++        )}
++      </div>
++
+       {/* Tooltip — posicionado dentro del visor (absolute) para aislamiento en split-screen */}
+-      <div 
++      <div
+         className={`pointer-events-none absolute bottom-6 right-6 z-50 transition-all duration-300 ease-in-out ${tooltip ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-4 scale-95'}`}
+       >
+         {tooltip && aminoInfo && (
+@@ -82,8 +132,8 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
+               <div className="col-span-2 flex flex-col pt-0.5">
+                 <span className="text-[9px] font-bold uppercase text-slate-400 tracking-tight">Propiedades</span>
+                 <div className="flex items-center gap-1.5 mt-0.5">
+-                   <div className="w-2 h-2 rounded-none shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
+-                   <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
++                  <div className="w-2 h-2 rounded-none shadow-sm" style={{ backgroundColor: aminoInfo.color }} />
++                  <span className="text-slate-600 font-semibold">{aminoInfo.category}</span>
+                 </div>
+               </div>
+             </div>
+@@ -97,12 +147,12 @@ export default function ViewerCanvas({ containerRef, tooltip, hasSelection, chil
+                 </span>
+               </div>
+               <div className="w-full bg-slate-100 h-2 rounded-none overflow-hidden shadow-inner">
+-                <div 
+-                  className="h-full transition-all duration-1000 ease-out shadow-sm" 
+-                  style={{ 
+-                    width: `${tooltip.plddt}%`, 
+-                    backgroundColor: plddtColor(tooltip.plddt) 
+-                  }} 
++                <div
++                  className="h-full transition-all duration-1000 ease-out shadow-sm"
++                  style={{
++                    width: `${tooltip.plddt}%`,
++                    backgroundColor: plddtColor(tooltip.plddt)
++                  }}
+                 />
+               </div>
+             </div>
+diff --git a/src/components/navigation/ToolsMenu.jsx b/src/components/navigation/ToolsMenu.jsx
+index f82a015..7f5bc21 100644
+--- a/src/components/navigation/ToolsMenu.jsx
++++ b/src/components/navigation/ToolsMenu.jsx
+@@ -7,45 +7,148 @@ import {
+   MenubarSeparator,
+   MenubarTrigger,
+ } from "../ui/menubar"
++import useAnalysisStore from '../../stores/useAnalysisStore'
+ 
+ export function ToolsMenu() {
+-  const itemClass = "text-xs text-slate-300 hover:bg-white/10 focus:bg-white/10 hover:text-white focus:text-white rounded-lg px-2 py-1.5 cursor-pointer"
++  const mode     = useAnalysisStore((s) => s.mode)
++  const toggleMode = useAnalysisStore((s) => s.toggleMode)
++  const clearAll = useAnalysisStore((s) => s.clearAll)
++
++  // ── Clases reutilizables ───────────────────────────────────────────────────
++  const base = "text-xs rounded-lg px-2 py-1.5 cursor-pointer flex items-center gap-2"
++
++  // Ítem normal (interactivo)
++  const itemClass = `${base} text-slate-300 hover:bg-white/10 focus:bg-white/10 hover:text-white focus:text-white`
++
++  // Ítem activo (modo encendido)
++  const activeClass = `${base} text-sky-300 bg-sky-500/15 ring-1 ring-sky-500/30 hover:bg-sky-500/20 focus:bg-sky-500/20`
++
++  // Ítem deshabilitado — no responde a clics, visualmente apagado
++  const disabledClass = `${base} text-slate-600 opacity-60 cursor-default pointer-events-none select-none`
++
++  // Badge "Próximamente"
++  const badge = (
++    <span className="ml-auto text-[9px] font-semibold uppercase tracking-widest text-slate-600">
++      Próximamente
++    </span>
++  )
++
++  // Punto pulsante de modo activo
++  const activeDot = (
++    <span className="ml-auto flex items-center gap-1 text-sky-400 text-[10px] font-semibold">
++      <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
++      activo
++    </span>
++  )
+ 
+   return (
+     <MenubarMenu>
+-      <MenubarTrigger>Análisis</MenubarTrigger>
++      {/* El trigger se colorea cuando hay un modo activo */}
++      <MenubarTrigger className={mode ? 'text-sky-400' : ''}>
++        Análisis{mode && <span className="ml-1 text-sky-400">●</span>}
++      </MenubarTrigger>
++
+       <MenubarContent className="w-80 bg-[#111113] border border-white/10 shadow-2xl backdrop-blur-md rounded-xl p-1.5">
+-        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Mediciones</MenubarLabel>
+-        <MenubarItem className={itemClass}>Medir Distancias</MenubarItem>
+-        <MenubarItem className={itemClass}>Medir Ángulos</MenubarItem>
+-        <MenubarItem className={itemClass}>Ángulos Diedros (Ramachandran)</MenubarItem>
+-        
+-        <MenubarSeparator className="bg-white/10 mx-1 my-1" />
+-        
+-        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Interacciones</MenubarLabel>
+-        <MenubarItem className={itemClass}>Detectar Puentes de Hidrógeno</MenubarItem>
+-        <MenubarItem className={itemClass}>Detectar Interacciones Pi-Pi / Cation-Pi</MenubarItem>
+-        <MenubarItem className={itemClass}>Calcular Superficie Accesible al Solvente (SASA)</MenubarItem>
+-        
++
++        {/* ── Mediciones ────────────────────────────────────────────────── */}
++        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
++          Mediciones
++        </MenubarLabel>
++
++        {/* REAL: Medir Distancias */}
++        <MenubarItem
++          className={mode === 'distance' ? activeClass : itemClass}
++          onClick={() => toggleMode('distance')}
++        >
++          <span>📏</span>
++          Medir Distancias
++          {mode === 'distance' ? activeDot : null}
++        </MenubarItem>
++
++        {/* DESHABILITADO */}
++        <MenubarItem className={disabledClass}>
++          Medir Ángulos
++          {badge}
++        </MenubarItem>
++        <MenubarItem className={disabledClass}>
++          Ángulos Diedros (Ramachandran)
++          {badge}
++        </MenubarItem>
++
+         <MenubarSeparator className="bg-white/10 mx-1 my-1" />
+-        
+-        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Alineamiento</MenubarLabel>
+-        <MenubarItem className={itemClass}>Superponer Estructuras (RMSD)</MenubarItem>
+-        <MenubarItem className={itemClass}>Alineamiento de Secuencias</MenubarItem>
+-        
++
++        {/* ── Interacciones ──────────────────────────────────────────────── */}
++        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
++          Interacciones
++        </MenubarLabel>
++
++        {/* REAL: Puentes de Hidrógeno */}
++        <MenubarItem
++          className={mode === 'hbonds' ? activeClass : itemClass}
++          onClick={() => toggleMode('hbonds')}
++        >
++          <span>🔗</span>
++          Detectar Puentes de Hidrógeno
++          {mode === 'hbonds' ? activeDot : null}
++        </MenubarItem>
++
++        {/* DESHABILITADOS */}
++        <MenubarItem className={disabledClass}>
++          Interacciones Pi-Pi / Cation-Pi
++          {badge}
++        </MenubarItem>
++        <MenubarItem className={disabledClass}>
++          Calcular SASA
++          {badge}
++        </MenubarItem>
++
+         <MenubarSeparator className="bg-white/10 mx-1 my-1" />
+-        
+-        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Predicciones / Modelado</MenubarLabel>
+-        <MenubarItem className={itemClass}>Calcular Potencial Electroestático (APBS)</MenubarItem>
+-        <MenubarItem className={itemClass}>Simular Mutación (In-silico Mutagenesis)</MenubarItem>
+-        
++
++        {/* ── Alineamiento ───────────────────────────────────────────────── */}
++        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
++          Alineamiento
++        </MenubarLabel>
++        <MenubarItem className={disabledClass}>
++          Superponer Estructuras (RMSD)
++          {badge}
++        </MenubarItem>
++        <MenubarItem className={disabledClass}>
++          Alineamiento de Secuencias
++          {badge}
++        </MenubarItem>
++
+         <MenubarSeparator className="bg-white/10 mx-1 my-1" />
+-        
+-        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Modo de Selección</MenubarLabel>
+-        <MenubarItem className={itemClass}>Átomos</MenubarItem>
+-        <MenubarItem className={itemClass}>Residuos</MenubarItem>
+-        <MenubarItem className={itemClass}>Cadenas</MenubarItem>
+-        <MenubarItem className={itemClass}>Ligandos/Solvente</MenubarItem>
++
++        {/* ── Predicciones / Modelado ────────────────────────────────────── */}
++        <MenubarLabel className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
++          Predicciones / Modelado
++        </MenubarLabel>
++        <MenubarItem className={disabledClass}>
++          Potencial Electroestático (APBS)
++          {badge}
++        </MenubarItem>
++        <MenubarItem className={disabledClass}>
++          Mutagénesis In-silico
++          {badge}
++        </MenubarItem>
++
++        {/* ── Limpiar análisis (solo visible si hay modo activo) ─────────── */}
++        {mode && (
++          <>
++            <MenubarSeparator className="bg-white/10 mx-1 my-1" />
++            <MenubarItem
++              className={`${base} text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 hover:text-red-300 focus:text-red-300`}
++              onClick={clearAll}
++            >
++              <span>🗑️</span>
++              Limpiar Análisis
++            </MenubarItem>
++          </>
++        )}
++
++        {/* SECCIÓN "MODO DE SELECCIÓN" ELIMINADA — era misleading.
++            La selección ya funciona vía hover/click en el visor directamente. */}
++
+       </MenubarContent>
+     </MenubarMenu>
+   )
+diff --git a/src/hooks/useMolstarMouseControls.js b/src/hooks/useMolstarMouseControls.js
+index 08e489c..eb82b31 100644
+--- a/src/hooks/useMolstarMouseControls.js
++++ b/src/hooks/useMolstarMouseControls.js
+@@ -2,10 +2,14 @@ import { useEffect, useRef } from 'react';
+ import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js';
+ import { applyRotation, applyTranslation } from '../lib/math/matrixUtils';
+ import { commitTransform, DRAG_SCALE } from '../lib/molstar/structurePipeline';
++import useAnalysisStore from '../stores/useAnalysisStore';
+ 
+ /**
+  * Hook para manejar la interacción del ratón con las estructuras en Mol*.
+  * Abstrae el picking, la rotación (Ctrl+Drag) y la traslación de proteínas individuales.
++ *
++ * Cuando hay un modo de análisis activo ('distance'), los clics se desvían
++ * al flujo de medición en lugar de al flujo de selección/drag normal.
+  */
+ export function useMolstarMouseControls({
+   containerRef,
+@@ -20,23 +24,26 @@ export function useMolstarMouseControls({
+     const container = containerRef.current;
+     if (!container) return;
+ 
+-    /** Picking por píxel: devuelve el protein id o null. */
+-    const pickAt = (clientX, clientY) => {
++    /**
++     * Picking por píxel: devuelve tanto el protein id como el Loci bajo el cursor.
++     * @returns {{ id: string|null, loci: object|null }}
++     */
++    const pickAtWithLoci = (clientX, clientY) => {
+       const plugin = pluginRef.current;
+-      if (!plugin?.canvas3d) return null;
++      if (!plugin?.canvas3d) return { id: null, loci: null };
+       const rect = container.getBoundingClientRect();
+       const pick = plugin.canvas3d.identify({ x: clientX - rect.left, y: clientY - rect.top });
+-      if (!pick) return null;
+-      
++      if (!pick) return { id: null, loci: null };
++
+       const loci = plugin.canvas3d.getLoci(pick.id);
+-      if (!loci || loci.kind !== 'element-loci') return null;
+-      
++      if (!loci || loci.kind !== 'element-loci') return { id: null, loci: null };
++
+       const pickedModel = loci.structure?.model;
+       for (const [id, entry] of entriesRef.current) {
+         const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
+-        if (s && (s === loci.structure || s.model === pickedModel)) return id;
++        if (s && (s === loci.structure || s.model === pickedModel)) return { id, loci };
+       }
+-      return null;
++      return { id: null, loci };
+     };
+ 
+     /** Vectores cámara en espacio mundo para traslación alineada. */
+@@ -52,8 +59,16 @@ export function useMolstarMouseControls({
+ 
+     const handleMouseDown = (event) => {
+       if (event.button !== 0) return;
+-      const hitId = pickAt(event.clientX, event.clientY);
+-      
++
++      // ── Modo análisis: en distance mode dejamos pasar el evento a Mol* ────
++      // El picking real se hace via plugin.behaviors.interaction.click
++      // (suscripción en MolecularViewer). Aquí solo bloqueamos el drag.
++      const { mode } = useAnalysisStore.getState();
++      if (mode === 'distance') return;
++
++      // ── Comportamiento normal: selección y drag ───────────────────────────
++      const { id: hitId } = pickAtWithLoci(event.clientX, event.clientY);
++
+       // Click en fondo vacío: no hace nada (des-selección solo desde el sidebar)
+       if (!hitId) return;
+ 
+@@ -93,7 +108,7 @@ export function useMolstarMouseControls({
+       if (!drag) return;
+       const plugin = pluginRef.current;
+       if (!plugin) return;
+-      
++
+       event.stopImmediatePropagation();
+       event.preventDefault();
+ 
+@@ -121,14 +136,24 @@ export function useMolstarMouseControls({
+       dragRef.current = null;
+     };
+ 
++    /** Escape: salir del modo de análisis activo. */
++    const handleKeyDown = (e) => {
++      if (e.key === 'Escape') {
++        const { mode } = useAnalysisStore.getState();
++        if (mode) useAnalysisStore.getState().clearAll();
++      }
++    };
++
+     container.addEventListener('mousedown', handleMouseDown, true);
+     window.addEventListener('mousemove', handleMouseMove, true);
+     window.addEventListener('mouseup', handleMouseUp, true);
+-    
++    window.addEventListener('keydown', handleKeyDown);
++
+     return () => {
+       container.removeEventListener('mousedown', handleMouseDown, true);
+       window.removeEventListener('mousemove', handleMouseMove, true);
+       window.removeEventListener('mouseup', handleMouseUp, true);
++      window.removeEventListener('keydown', handleKeyDown);
+     };
+   }, [containerRef, pluginRef, entriesRef, selectedIdsRef, setSelectedProteinIds]);
+ }

@@ -4,6 +4,7 @@ import { registerAlphafoldPlddtTheme } from '../../hooks/plddtColorTheme';
 import { useProteinStore } from '../../stores/useProteinStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useMolstarMouseControls } from '../../hooks/useMolstarMouseControls';
+import useAnalysisStore from '../../stores/useAnalysisStore';
 import ViewerCanvas from './ViewerCanvas';
 
 // --- Importaciones Mol* ---
@@ -27,59 +28,62 @@ import {
  *  2. Sincronizar las proteínas del store con las estructuras cargadas en Mol*
  *  3. Reaccionar a cambios de representación, iluminación, fondo y residuo enfocado
  *  4. Gestionar el tooltip de hover sobre residuos
+ *  5. Gestionar modos de análisis (medición de distancias, puentes de hidrógeno)
  *
- * Delega en:
- *  - structurePipeline.js → carga/descarga de estructuras, transformaciones
- *  - useMolstarMouseControls → eventos de ratón (picking, drag)
- *  - ViewerCanvas → capa visual React (grid, tooltip, overlay)
+ * Estrategia de picking para medición de distancias:
+ *  El hover de Mol* ya computa de forma fiable el átomo bajo el cursor
+ *  (lo sabemos porque el tooltip funciona). Almacenamos el último loci
+ *  del hover en un ref y lo usamos cuando el usuario hace clic, en lugar
+ *  de intentar relanzar canvas3d.identify() en el evento mousedown (que
+ *  puede tener problemas de sincronización con el pick buffer del GPU).
  */
 export default function MolecularViewer({ proteinId }) {
   // ── Store: proteínas ───────────────────────────────────────────────────────
-  const proteinsById          = useProteinStore((s) => s.proteinsById);       // catálogo completo
+  const proteinsById          = useProteinStore((s) => s.proteinsById);
   const setSelectedProteinIds = useProteinStore((s) => s.setSelectedProteinIds);
 
-  // Array derivado de la prop — mantiene compatibilidad con syncStructures y el ref interno
   const proteinIdArray = proteinId ? [proteinId] : [];
 
   // ── Store: UI ──────────────────────────────────────────────────────────────
-  const viewerRepresentation = useUIStore((s) => s.viewerRepresentation); // cartoon | ball-and-stick | …
-  const viewerLighting       = useUIStore((s) => s.viewerLighting);       // ao | flat | studio
-  const sceneBackground      = useUIStore((s) => s.viewerBackground);     // color hex del fondo
+  const viewerRepresentation    = useUIStore((s) => s.viewerRepresentation);
+  const viewerLighting          = useUIStore((s) => s.viewerLighting);
+  const sceneBackground         = useUIStore((s) => s.viewerBackground);
   const focusedResidueByProtein = useUIStore((s) => s.focusedResidueByProtein);
   const focusedResidue          = proteinId ? focusedResidueByProtein[proteinId] : null;
 
-  // ── Live refs ──────────────────────────────────────────────────────────────
-  // Los callbacks async de Mol* cierran sobre estos refs, no sobre el estado
-  // de React, para evitar stale closures en efectos de larga duración.
+  // ── Store: análisis ────────────────────────────────────────────────────────
+  const analysisMode = useAnalysisStore((s) => s.mode);
+  const pendingLoci  = useAnalysisStore((s) => s.pendingLoci);
+  const clearTrigger = useAnalysisStore((s) => s.clearTrigger);
+  const clearAll     = useAnalysisStore((s) => s.clearAll);
+
+  // ── Refs ───────────────────────────────────────────────────────────────────
   const selectedIdsRef  = useRef(proteinIdArray);
   const proteinsByIdRef = useRef(proteinsById);
   const reprTypeRef     = useRef(viewerRepresentation);
-  const entriesRef      = useRef(new Map()); // Map<id, entry> — estructuras cargadas en Mol*
+  const entriesRef      = useRef(new Map());
+
+  // Loci del átomo/residuo actualmente bajo el cursor.
+  // Actualizado por la suscripción al hover de Mol* y usado por el handler de click.
+  const lastHoverLociRef = useRef(null);
+
+  // Refs a las representaciones de H-bonds añadidas dinámicamente
+  const hbondReprRefs = useRef([]);
 
   useEffect(() => { selectedIdsRef.current  = proteinIdArray; }, [proteinId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { proteinsByIdRef.current = proteinsById; }, [proteinsById]);
+  useEffect(() => { proteinsByIdRef.current = proteinsById; },   [proteinsById]);
   useEffect(() => { reprTypeRef.current     = viewerRepresentation; }, [viewerRepresentation]);
 
-  // ── Tooltip de residuos (hover + selección) ───────────────────────────────
-  // - hoverTooltip: prioriza lo que está bajo el cursor en tiempo real.
-  // - selectedTooltip: mantiene visible la info del residuo seleccionado.
-  const [hoverTooltip, setHoverTooltip] = useState(null);
+  // ── Tooltip ────────────────────────────────────────────────────────────────
+  const [hoverTooltip,    setHoverTooltip]    = useState(null);
   const [selectedTooltip, setSelectedTooltip] = useState(null);
   const tooltip = hoverTooltip ?? selectedTooltip;
 
   // ── 1. Inicialización del plugin ───────────────────────────────────────────
-  // useMolstarViewer crea el PluginContext, monta el canvas WebGL y llama a
-  // setup() una sola vez tras la inicialización.
   const { containerRef, pluginRef } = useMolstarViewer({
     setup: async (plugin) => {
-      // Registrar el tema de color pLDDT de AlphaFold (azul→cyan→amarillo→naranja)
       registerAlphafoldPlddtTheme(plugin);
 
-      // Configurar iluminación inicial y desactivar niebla/clipping para que
-      // la proteína se renderice completa sin desvanecerse en los extremos.
-      // - cameraFog: off         → sin niebla al fondo
-      // - cameraClipping.far: false → sin corte por plano far
-      // - cameraClipping.radius: 0  → plano near al máximo del campo de visión
       plugin.canvas3d?.setProps({
         ...LIGHTING_PRESETS.ao,
         renderer: {
@@ -88,44 +92,47 @@ export default function MolecularViewer({ proteinId }) {
         },
       });
 
-      // Cargar las proteínas que ya estuvieran seleccionadas al montar el componente
       const dirty = await syncStructures(
         plugin, entriesRef.current,
         proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
       );
       if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
 
-      // Suscripción al evento hover de Mol*:
-      // Cada vez que el cursor pasa sobre un átomo, extraemos el aminoácido,
-      // la posición en la cadena y el pLDDT para mostrar en el tooltip.
+      // Suscripción al hover de Mol*.
+      // También almacenamos el loci en lastHoverLociRef para usarlo en el
+      // handler de click de medición de distancias (ver useEffect abajo).
       const hoverSub = plugin.behaviors.interaction.hover.subscribe(({ current }) => {
         if (!current?.loci || current.loci.kind !== 'element-loci') {
           setHoverTooltip(null);
+          lastHoverLociRef.current = null;
           return;
         }
         try {
           const loc = StructureElement.Loci.getFirstLocation(current.loci);
-          if (!loc) { setHoverTooltip(null); return; }
-
+          if (!loc) {
+            setHoverTooltip(null);
+            lastHoverLociRef.current = null;
+            return;
+          }
+          lastHoverLociRef.current = current.loci; // ← clave para la medición
           setHoverTooltip({
-            code:    StructureProperties.residue.auth_comp_id(loc),    // p.ej. "GLY"
-            seqId:   StructureProperties.residue.auth_seq_id(loc),     // nº en la cadena
-            chainId: StructureProperties.chain.auth_asym_id(loc),      // "A", "B", …
-            plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1), // confianza AlphaFold
+            code:    StructureProperties.residue.auth_comp_id(loc),
+            seqId:   StructureProperties.residue.auth_seq_id(loc),
+            chainId: StructureProperties.chain.auth_asym_id(loc),
+            plddt:   StructureProperties.atom.B_iso_or_equiv(loc).toFixed(1),
           });
         } catch (_) {
           setHoverTooltip(null);
+          lastHoverLociRef.current = null;
         }
       });
 
-      // Devolvemos la limpieza de la suscripción para cuando se desmonte
       return () => hoverSub.unsubscribe();
     },
     deps: [],
   });
 
-  // ── 2. Controles de ratón ──────────────────────────────────────────────────
-  // Picking (clic sobre átomo → selecciona proteína) y drag (rota estructura).
+  // ── 2. Controles de ratón (selección + drag) ───────────────────────────────
   useMolstarMouseControls({
     containerRef,
     pluginRef,
@@ -134,11 +141,59 @@ export default function MolecularViewer({ proteinId }) {
     setSelectedProteinIds,
   });
 
-  // ── 3. Efectos reactivos ───────────────────────────────────────────────────
+  // ── 3. Medición de distancias — click handler ──────────────────────────────
+  // Usamos el loci almacenado por el hover (siempre fiable porque el tooltip
+  // funciona) en lugar de relanzar canvas3d.identify() en el click, que puede
+  // fallar por sincronización con el pick buffer del GPU.
+  //
+  // Este useEffect escucha el evento 'click' del DOM en el container.
+  // En modo distancia, useMolstarMouseControls devuelve sin preventDefault,
+  // por lo que el evento 'click' del navegador llega aquí correctamente.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  // Sincronización de estructuras:
-  // Cuando cambia el catálogo de proteínas o la selección, syncStructures elimina
-  // lo que ya no está y carga lo que falta. Si hubo cambios, resetea la cámara.
+    const handleClick = () => {
+      const { mode, pendingLoci: pending, addPendingLocus, clearPendingLoci } =
+        useAnalysisStore.getState();
+
+      if (mode !== 'distance') return;
+
+      const loci = lastHoverLociRef.current;
+      if (!loci) return; // cursor no está sobre ningún residuo
+
+      const plugin = pluginRef.current;
+      if (!plugin) return;
+
+      if (pending.length === 0) {
+        // Primer punto: guardar y resaltar visualmente en el visor
+        addPendingLocus(loci);
+        plugin.managers.interactivity.lociSelects.selectOnly({ loci });
+      } else {
+        // Segundo punto: verificar que no sea el mismo punto
+        if (StructureElement.Loci.areEqual(pending[0], loci)) {
+          plugin.managers.interactivity.lociSelects.deselectAll();
+          clearPendingLoci();
+          return;
+        }
+
+        // Crear la medida y limpiar selección temporal
+        try {
+          plugin.managers.structure.measurement.addDistance(pending[0], loci);
+        } catch (err) {
+          console.warn('[Analysis] addDistance failed:', err);
+        }
+        plugin.managers.interactivity.lociSelects.deselectAll();
+        clearPendingLoci();
+      }
+    };
+
+    container.addEventListener('click', handleClick);
+    return () => container.removeEventListener('click', handleClick);
+  }, [containerRef, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 4. Efectos reactivos ───────────────────────────────────────────────────
+
   useEffect(() => {
     const plugin = pluginRef.current;
     if (!plugin) return;
@@ -154,77 +209,117 @@ export default function MolecularViewer({ proteinId }) {
     return () => { cancelled = true; };
   }, [proteinsById, proteinId, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Color de fondo del canvas (hex → Color de Mol*)
   useEffect(() => {
     pluginRef.current?.canvas3d?.setProps({
       renderer: { backgroundColor: Color.fromHexStyle(sceneBackground) },
     });
   }, [sceneBackground, pluginRef]);
 
-  // Tipo de representación visual (cartoon, ball-and-stick, surface…)
-  // Actualiza todas las estructuras cargadas simultáneamente.
   useEffect(() => {
     const plugin = pluginRef.current;
     if (!plugin || entriesRef.current.size === 0) return;
     updateAllRepresentations(plugin, entriesRef.current, viewerRepresentation).catch(console.error);
   }, [viewerRepresentation, pluginRef]);
 
-  // Residuo enfocado desde la FastaBar:
-  // Selecciona el residuo en Mol* y mueve la cámara hacia él con animación.
   useEffect(() => {
     const plugin = pluginRef.current;
     if (!plugin || entriesRef.current.size === 0) {
       setSelectedTooltip(null);
       return;
     }
-
     if (!focusedResidue) {
       clearResidueSelection(plugin);
       setSelectedTooltip(null);
       return;
     }
-
-    if (!proteinId) {
-      setSelectedTooltip(null);
-      return;
-    }
+    if (!proteinId) { setSelectedTooltip(null); return; }
     const entry = entriesRef.current.get(proteinId);
-    if (!entry) {
-      setSelectedTooltip(null);
-      return;
-    }
+    if (!entry)   { setSelectedTooltip(null); return; }
 
     const loci = selectResidueBySeqId(plugin, entry, focusedResidue.seqId);
-    const loc = loci ? StructureElement.Loci.getFirstLocation(loci) : null;
-    if (!loc) {
-      setSelectedTooltip(null);
-      return;
-    }
+    const loc  = loci ? StructureElement.Loci.getFirstLocation(loci) : null;
+    if (!loc)  { setSelectedTooltip(null); return; }
 
     const plddt = StructureProperties.atom.B_iso_or_equiv(loc);
     setSelectedTooltip({
-      code: StructureProperties.residue.auth_comp_id(loc),
-      seqId: StructureProperties.residue.auth_seq_id(loc),
+      code:    StructureProperties.residue.auth_comp_id(loc),
+      seqId:   StructureProperties.residue.auth_seq_id(loc),
       chainId: StructureProperties.chain.auth_asym_id(loc),
-      plddt: Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
+      plddt:   Number.isFinite(plddt) ? plddt.toFixed(1) : '0.0',
     });
   }, [focusedResidue, pluginRef, proteinId]);
 
-  // Esquema de iluminación (ao / flat / studio):
-  // Aplica el preset completo, incluyendo oclusión ambiental, sombras,
-  // intensidades de luz, niebla desactivada y clipping sin corte.
   useEffect(() => {
     const plugin = pluginRef.current;
     if (!plugin) return;
     plugin.canvas3d?.setProps(LIGHTING_PRESETS[viewerLighting] ?? LIGHTING_PRESETS.ao);
   }, [viewerLighting, pluginRef]);
 
-  // ── 4. Props para ViewerCanvas ─────────────────────────────────────────────
+  // ── 5. Análisis: puentes de hidrógeno ──────────────────────────────────────
+  useEffect(() => {
+    const plugin = pluginRef.current;
+    if (!plugin || entriesRef.current.size === 0) return;
+
+    if (analysisMode !== 'hbonds') {
+      if (hbondReprRefs.current.length > 0) {
+        const builder = plugin.build();
+        hbondReprRefs.current.forEach((ref) => {
+          try { builder.delete(ref); } catch (_) { /* huérfana */ }
+        });
+        builder.commit().catch(console.error);
+        hbondReprRefs.current = [];
+      }
+      return;
+    }
+
+    (async () => {
+      const newRefs = [];
+      for (const [, entry] of entriesRef.current) {
+        try {
+          const ref = await plugin.builders.structure.representation.addRepresentation(
+            entry.transformedRef,
+            { type: 'interactions' },
+          );
+          if (ref?.ref) newRefs.push(ref.ref);
+        } catch (e) {
+          console.warn('[Analysis] No se pudo añadir repr de interacciones:', e);
+        }
+      }
+      hbondReprRefs.current = newRefs;
+    })();
+  }, [analysisMode, pluginRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 6. Análisis: limpiar todo ──────────────────────────────────────────────
+  useEffect(() => {
+    if (clearTrigger === 0) return;
+    const plugin = pluginRef.current;
+    if (!plugin) return;
+
+    try { plugin.managers.structure.measurement.clear(); }
+    catch (e) { console.warn('[Analysis] measurement.clear() failed:', e); }
+
+    plugin.managers.interactivity.lociSelects.deselectAll();
+
+    if (hbondReprRefs.current.length > 0) {
+      const builder = plugin.build();
+      hbondReprRefs.current.forEach((ref) => {
+        try { builder.delete(ref); } catch (_) { /* huérfana */ }
+      });
+      builder.commit().catch(console.error);
+      hbondReprRefs.current = [];
+    }
+  }, [clearTrigger, pluginRef]);
+
+  // ── 7. Props para ViewerCanvas ─────────────────────────────────────────────
   return (
     <ViewerCanvas
       containerRef={containerRef}
       tooltip={tooltip}
       hasSelection={!!proteinId}
+      analysisMode={analysisMode}
+      pendingCount={pendingLoci.length}
+      hasHoverTarget={!!hoverTooltip}
+      onExitMode={clearAll}
     >
       <div />
     </ViewerCanvas>

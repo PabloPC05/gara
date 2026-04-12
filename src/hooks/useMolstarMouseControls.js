@@ -2,10 +2,14 @@ import { useEffect, useRef } from 'react';
 import { Mat4, Vec3 } from 'molstar/lib/mol-math/linear-algebra.js';
 import { applyRotation, applyTranslation } from '../lib/math/matrixUtils';
 import { commitTransform, DRAG_SCALE } from '../lib/molstar/structurePipeline';
+import useAnalysisStore from '../stores/useAnalysisStore';
 
 /**
  * Hook para manejar la interacción del ratón con las estructuras en Mol*.
  * Abstrae el picking, la rotación (Ctrl+Drag) y la traslación de proteínas individuales.
+ *
+ * Cuando hay un modo de análisis activo ('distance'), los clics se desvían
+ * al flujo de medición en lugar de al flujo de selección/drag normal.
  */
 export function useMolstarMouseControls({
   containerRef,
@@ -20,23 +24,26 @@ export function useMolstarMouseControls({
     const container = containerRef.current;
     if (!container) return;
 
-    /** Picking por píxel: devuelve el protein id o null. */
-    const pickAt = (clientX, clientY) => {
+    /**
+     * Picking por píxel: devuelve tanto el protein id como el Loci bajo el cursor.
+     * @returns {{ id: string|null, loci: object|null }}
+     */
+    const pickAtWithLoci = (clientX, clientY) => {
       const plugin = pluginRef.current;
-      if (!plugin?.canvas3d) return null;
+      if (!plugin?.canvas3d) return { id: null, loci: null };
       const rect = container.getBoundingClientRect();
       const pick = plugin.canvas3d.identify({ x: clientX - rect.left, y: clientY - rect.top });
-      if (!pick) return null;
-      
+      if (!pick) return { id: null, loci: null };
+
       const loci = plugin.canvas3d.getLoci(pick.id);
-      if (!loci || loci.kind !== 'element-loci') return null;
-      
+      if (!loci || loci.kind !== 'element-loci') return { id: null, loci: null };
+
       const pickedModel = loci.structure?.model;
       for (const [id, entry] of entriesRef.current) {
         const s = plugin.state.data.cells.get(entry.transformedRef.ref)?.obj?.data;
-        if (s && (s === loci.structure || s.model === pickedModel)) return id;
+        if (s && (s === loci.structure || s.model === pickedModel)) return { id, loci };
       }
-      return null;
+      return { id: null, loci };
     };
 
     /** Vectores cámara en espacio mundo para traslación alineada. */
@@ -52,8 +59,16 @@ export function useMolstarMouseControls({
 
     const handleMouseDown = (event) => {
       if (event.button !== 0) return;
-      const hitId = pickAt(event.clientX, event.clientY);
-      
+
+      // ── Modo análisis: en distance mode dejamos pasar el evento a Mol* ────
+      // El picking real se hace via plugin.behaviors.interaction.click
+      // (suscripción en MolecularViewer). Aquí solo bloqueamos el drag.
+      const { mode } = useAnalysisStore.getState();
+      if (mode === 'distance') return;
+
+      // ── Comportamiento normal: selección y drag ───────────────────────────
+      const { id: hitId } = pickAtWithLoci(event.clientX, event.clientY);
+
       // Click en fondo vacío: no hace nada (des-selección solo desde el sidebar)
       if (!hitId) return;
 
@@ -93,7 +108,7 @@ export function useMolstarMouseControls({
       if (!drag) return;
       const plugin = pluginRef.current;
       if (!plugin) return;
-      
+
       event.stopImmediatePropagation();
       event.preventDefault();
 
@@ -121,14 +136,24 @@ export function useMolstarMouseControls({
       dragRef.current = null;
     };
 
+    /** Escape: salir del modo de análisis activo. */
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        const { mode } = useAnalysisStore.getState();
+        if (mode) useAnalysisStore.getState().clearAll();
+      }
+    };
+
     container.addEventListener('mousedown', handleMouseDown, true);
     window.addEventListener('mousemove', handleMouseMove, true);
     window.addEventListener('mouseup', handleMouseUp, true);
-    
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       container.removeEventListener('mousedown', handleMouseDown, true);
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('mouseup', handleMouseUp, true);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [containerRef, pluginRef, entriesRef, selectedIdsRef, setSelectedProteinIds]);
 }
