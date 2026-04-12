@@ -14,24 +14,26 @@ export const DRAG_SCALE = 0.004;
 /**
  * Configuración compartida de visibilidad de cámara para todos los presets.
  *
- * El plano far de Mol* se calcula como:
- *   far = cameraDistance + radiusMax
+ * Mol* calcula los planos de recorte en updateClip como:
+ *   near = max(minNear, cameraDistance − camera.state.radius)
+ *   far  = cameraDistance + radiusMax
  *   radiusMax = scene.boundingSphere.radius × sceneRadiusFactor
  *
- * Con sceneRadiusFactor = 1 (defecto), el plano far está justo en el borde de la
- * esfera bounding. Las representaciones cartoon/ribbon sobresalen ligeramente más
- * allá del radio de átomos, quedando recortadas. Al hacer zoom el problema persiste
- * porque ambos (far y proteína) se desplazan proporcionalmente.
+ * Por defecto el camera.state.radius ≈ bspRadius, lo que pone el plano near
+ * justo en el borde de la esfera bounding atómica. Las representaciones
+ * (cartoon, superficie) sobresalen varios Å más allá → se recortan.
  *
- * Con sceneRadiusFactor = 3 y clipFar = false:
- *   far = cameraDistance + 3 × bspRadius   (fijo en espacio world respecto al centro)
- *   proteína visual ≤ cameraDistance + bspRadius + repr_padding
- *   → margen de ≥ 2×bspRadius → siempre visible sin importar el nivel de zoom
+ * Soluciones aplicadas:
+ *   • cameraClipping.radius: 0 → cuando setProps se aplica, infla el radio
+ *     del estado de cámara a radiusMax (= 3×bspRadius) → near cae a minNear.
+ *   • resetCameraFull(): al resetear la cámara usa un snapshot que duplica
+ *     el radio de la esfera bounding → margen generoso para representaciones.
+ *   • sceneRadiusFactor: 3 → far = cameraDistance + 3×bspRadius.
  */
 const CAMERA_VISIBILITY = {
-  cameraFog: { name: 'off', params: {} },        // sin niebla al fondo
-  cameraClipping: { far: false, minNear: 0.1 },  // sin corte por plano far; plano near muy cercano
-  sceneRadiusFactor: 3,                           // radiusMax = 3× bspRadius → far fijo y generoso
+  cameraFog: { name: 'off', params: {} },                  // sin niebla al fondo
+  cameraClipping: { far: false, minNear: 0.1, radius: 0 }, // radio máximo → sin recorte near
+  sceneRadiusFactor: 3,                                     // radiusMax = 3× bspRadius → far generoso
 };
 
 // Interacción de residuos: hover rojo y selección verde.
@@ -277,6 +279,26 @@ export function selectResidueBySeqId(plugin, entry, seqId) {
 export function clearResidueSelection(plugin) {
   plugin.managers.interactivity.lociSelects.deselectAll();
   plugin.managers.structure.focus.clear();
+}
+
+/**
+ * Resetea la cámara para encuadrar todas las estructuras, con radio inflado
+ * para evitar el recorte del plano near en representaciones (cartoon, superficie)
+ * que se extienden más allá de la esfera bounding de coordenadas atómicas.
+ *
+ * camera.reset() estándar fija camera.state.radius = bspRadius, colocando el
+ * plano near justo en el borde de la esfera atómica. Al duplicar el radio,
+ * near = max(0.1, distance − 2×bspRadius), que a la distancia por defecto
+ * (~2.6×bspRadius) da near ≈ 0.6×bspRadius → margen amplio.
+ */
+export function resetCameraFull(plugin) {
+  if (!plugin?.canvas3d) return;
+  plugin.canvas3d.requestCameraReset({
+    snapshot: (scene) => {
+      const r = scene.boundingSphereVisible.radius;
+      return r > 0 ? { radius: r * 2 } : {};
+    },
+  });
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   updateAllRepresentations,
   selectResidueBySeqId,
   clearResidueSelection,
+  resetCameraFull,
   LIGHTING_PRESETS
 } from '../../lib/molstar/structurePipeline';
 
@@ -101,7 +102,7 @@ export default function MolecularViewer() {
         plugin, entriesRef.current,
         proteinsByIdRef.current, selectedIdsRef.current, reprTypeRef.current,
       );
-      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
+      if (dirty && entriesRef.current.size > 0) resetCameraFull(plugin);
 
       // Suscripción al evento hover de Mol*:
       // Cada vez que el cursor pasa sobre un átomo, extraemos el aminoácido,
@@ -234,7 +235,7 @@ export default function MolecularViewer() {
         proteinsById, selectedProteinIds, reprTypeRef.current,
       );
       if (cancelled) return;
-      if (dirty && entriesRef.current.size > 0) plugin.managers.camera.reset();
+      if (dirty && entriesRef.current.size > 0) resetCameraFull(plugin);
     })();
     return () => { cancelled = true; };
   }, [proteinsById, selectedProteinIds, pluginRef]);
