@@ -1,7 +1,7 @@
-import { initializeApp } from 'firebase/app'
-import { getAnalytics, isSupported } from 'firebase/analytics'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeApp } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,23 +11,21 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-}
+};
 
-const app = initializeApp(firebaseConfig)
+const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app)
-export const db = getFirestore(app)
-export let analytics = null
+export const auth = getAuth(app);
+const db = getFirestore(app);
+let analytics = null;
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   isSupported()
     .then((supported) => {
-      if (!supported) return
-      analytics = getAnalytics(app)
+      if (!supported) return;
+      analytics = getAnalytics(app);
     })
     .catch((error) => {
-      console.warn('Firebase Analytics unavailable:', error)
-    })
+      console.warn("Firebase Analytics unavailable:", error);
+    });
 }
-
-export { app }

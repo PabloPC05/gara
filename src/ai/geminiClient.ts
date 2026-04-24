@@ -1,26 +1,35 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY ?? "");
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY ?? "";
+
+if (API_KEY && import.meta.env.DEV) {
+	console.warn(
+		"[geminiClient] VITE_GEMINI_API_KEY is embedded in the client bundle. " +
+			"Move Gemini calls to a backend proxy to avoid exposing this key in production.",
+	);
+}
+
+const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
 export async function streamExplanation(
-  prompt: string,
-  onChunk: (chunk: string) => void,
+	prompt: string,
+	onChunk: (chunk: string) => void,
 ): Promise<void> {
-  const result = await model.generateContentStream(prompt);
-  for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) onChunk(text);
-  }
+	if (!API_KEY) throw new Error("Gemini API key not configured");
+	const result = await model.generateContentStream(prompt);
+	for await (const chunk of result.stream) {
+		const text = chunk.text();
+		if (text) onChunk(text);
+	}
 }
 
-/**
- * Asks Gemini to extract the protein name the user wants to load/fetch.
- * Returns the canonical English name (best for UniProt/catalog search),
- * or null if the message is not a protein load request.
- */
-export async function extractProteinQuery(userMessage: string): Promise<string | null> {
-  const prompt = `Tarea: determinar si el usuario quiere VER, CARGAR o VISUALIZAR una proteína en un portal de bioinformática y, en ese caso, extraer su nombre.
+export async function extractProteinQuery(
+	userMessage: string,
+): Promise<string | null> {
+	if (!API_KEY) throw new Error("Gemini API key not configured");
+
+	const prompt = `Tarea: determinar si el usuario quiere VER, CARGAR o VISUALIZAR una proteína en un portal de bioinformática y, en ese caso, extraer su nombre.
 
 Contexto: el portal puede buscar proteínas por nombre, obtener su FASTA y cargarlas para visualizarlas en 3D. Cualquier petición de ver, mostrar, enseñar, cargar, enviar o visualizar una proteína específica es una orden de carga.
 
@@ -74,8 +83,8 @@ Respuesta: null
 Mensaje: "${userMessage.replace(/"/g, "'")}"
 Respuesta:`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-  if (!text || text.toLowerCase() === "null") return null;
-  return text;
+	const result = await model.generateContent(prompt);
+	const text = result.response.text().trim();
+	if (!text || text.toLowerCase() === "null") return null;
+	return text;
 }

@@ -1,52 +1,64 @@
-import { useUIStore } from '@/stores/useUIStore'
+import { useLayoutStore } from "@/stores/useLayoutStore";
+import { useViewerConfigStore } from "@/stores/useViewerConfigStore";
 
-describe('useUIStore', () => {
+describe("useLayoutStore", () => {
   beforeEach(() => {
-    useUIStore.setState({
-      activeTab: 'plus',
-      sceneBackground: '#000000',
-      viewerRepresentation: 'cartoon',
-      viewerLighting: 'ao',
-    })
-  })
+    useLayoutStore.setState({
+      activeTab: "plus",
+    });
+  });
 
-  describe('activeTab', () => {
-    it('toggles tab off when same tab clicked', () => {
-      useUIStore.getState().setActiveTab('plus')
-      expect(useUIStore.getState().activeTab).toBeNull()
-    })
+  describe("activeTab", () => {
+    it("toggles tab off when same tab clicked", () => {
+      useLayoutStore.getState().setActiveTab("plus");
+      expect(useLayoutStore.getState().activeTab).toBeNull();
+    });
 
-    it('switches to a different tab', () => {
-      useUIStore.getState().setActiveTab('files')
-      expect(useUIStore.getState().activeTab).toBe('files')
-    })
+    it("switches to a different tab", () => {
+      useLayoutStore.getState().setActiveTab("files");
+      expect(useLayoutStore.getState().activeTab).toBe("files");
+    });
 
-    it('toggles between tabs correctly', () => {
-      useUIStore.getState().setActiveTab('files')
-      useUIStore.getState().setActiveTab('search')
+    it("toggles between tabs correctly", () => {
+      useLayoutStore.getState().setActiveTab("files");
+      useLayoutStore.getState().setActiveTab("search");
 
-      expect(useUIStore.getState().activeTab).toBe('search')
-    })
-  })
+      expect(useLayoutStore.getState().activeTab).toBe("search");
+    });
+  });
+});
 
-  describe('sceneBackground', () => {
-    it('sets a new background color', () => {
-      useUIStore.getState().setSceneBackground('#ffffff')
-      expect(useUIStore.getState().sceneBackground).toBe('#ffffff')
-    })
-  })
+describe("useViewerConfigStore", () => {
+  beforeEach(() => {
+    useViewerConfigStore.setState({
+      viewerBackground: "#000000",
+      viewerRepresentation: "cartoon",
+      viewerLighting: "ao",
+    });
+  });
 
-  describe('viewerRepresentation', () => {
-    it('changes representation', () => {
-      useUIStore.getState().setViewerRepresentation('gaussian-surface')
-      expect(useUIStore.getState().viewerRepresentation).toBe('gaussian-surface')
-    })
-  })
+  describe("viewerBackground", () => {
+    it("sets a new background color", () => {
+      useViewerConfigStore.getState().setViewerBackground("#ffffff");
+      expect(useViewerConfigStore.getState().viewerBackground).toBe("#ffffff");
+    });
+  });
 
-  describe('viewerLighting', () => {
-    it('changes lighting preset', () => {
-      useUIStore.getState().setViewerLighting('studio')
-      expect(useUIStore.getState().viewerLighting).toBe('studio')
-    })
-  })
-})
+  describe("viewerRepresentation", () => {
+    it("changes representation", () => {
+      useViewerConfigStore
+        .getState()
+        .setViewerRepresentation("gaussian-surface");
+      expect(useViewerConfigStore.getState().viewerRepresentation).toBe(
+        "gaussian-surface",
+      );
+    });
+  });
+
+  describe("viewerLighting", () => {
+    it("changes lighting preset", () => {
+      useViewerConfigStore.getState().setViewerLighting("studio");
+      expect(useViewerConfigStore.getState().viewerLighting).toBe("studio");
+    });
+  });
+});

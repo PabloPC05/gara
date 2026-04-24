@@ -20,7 +20,8 @@
           document.querySelectorAll('*').forEach(function(el){
             if(el.scrollWidth > el.clientWidth + 1){
               var r = el.getBoundingClientRect();
-              if(r.width > 0 && r.height > 0){
+              var cs = getComputedStyle(el);
+              if(r.width > 0 && r.height > 0 && cs.display !== 'inline' && cs.overflowX !== 'auto' && cs.overflowX !== 'scroll'){
                 var path = [];
                 var node = el;
                 for(var i=0;i<5&&node&&node!==document.body;i++){

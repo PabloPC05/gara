@@ -1,4 +1,4 @@
-const DEEP_LINK_TYPE = 'camelia-view';
+const DEEP_LINK_TYPE = "camelia-view";
 const DEEP_LINK_VERSION = 1;
 
 export function serializeViewerState({
@@ -67,12 +67,13 @@ function decodePayload(encoded) {
   return JSON.parse(json);
 }
 
-export function deserializeViewerState(encoded) {
+function deserializeViewerState(encoded) {
   try {
     const payload = decodePayload(encoded);
     if (payload.type !== DEEP_LINK_TYPE) return null;
     if (payload.version !== DEEP_LINK_VERSION) return null;
-    if (!Array.isArray(payload.proteins) || payload.proteins.length === 0) return null;
+    if (!Array.isArray(payload.proteins) || payload.proteins.length === 0)
+      return null;
     return payload;
   } catch {
     return null;
@@ -86,7 +87,7 @@ export function buildShareUrl(encoded) {
 export function parseShareUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
-    const encoded = params.get('view');
+    const encoded = params.get("view");
     if (!encoded) return null;
     return deserializeViewerState(encoded);
   } catch {
@@ -95,5 +96,5 @@ export function parseShareUrl() {
 }
 
 export function cleanShareUrl() {
-  window.history.replaceState({}, '', window.location.pathname);
+  window.history.replaceState({}, "", window.location.pathname);
 }

@@ -1,65 +1,47 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from "@testing-library/react";
 
-import { AminoAcidPicker } from '@/components/sidebar/AminoAcidPicker'
-import { JOB_PANEL_KEYS, useJobStatusStore } from '@/stores/useJobStatusStore'
+import { AminoAcidGridPicker } from "@/components/left-sidebar/widgets/AminoAcidGridPicker";
 
-describe('AminoAcidPicker job status persistence', () => {
-  const defaultProps = {
-    open: true,
-    onOpenChange: () => {},
-    onAppendLetter: () => {},
-    onDeleteLast: () => {},
-    onClear: () => {},
-    onConfirm: () => {},
-    canConfirm: true,
-  }
+describe("AminoAcidGridPicker", () => {
+	const defaultProps = {
+		open: true,
+		onOpenChange: vi.fn(),
+		onAppendLetter: vi.fn(),
+		onDeleteLast: vi.fn(),
+		onClear: vi.fn(),
+		onConfirm: vi.fn(),
+		canConfirm: true,
+	};
 
-  beforeEach(() => {
-    useJobStatusStore.setState({ panelsByKey: {} })
-  })
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
 
-  afterEach(() => {
-    cleanup()
-  })
+	it("appends amino acid letter when clicking a key", () => {
+		render(<AminoAcidGridPicker {...defaultProps} />);
 
-  it('reads the persisted RUNNING panel again after remount', () => {
-    useJobStatusStore.getState().upsertJobPanel(JOB_PANEL_KEYS.aminoBuilder, {
-      status: 'RUNNING',
-      error: null,
-      jobId: 'job-1',
-    })
+		fireEvent.click(screen.getByRole("button", { name: "Gly" }));
 
-    const { unmount } = render(<AminoAcidPicker {...defaultProps} />)
+		expect(defaultProps.onAppendLetter).toHaveBeenCalledWith("G");
+	});
 
-    expect(screen.getByText('RUNNING')).toBeInTheDocument()
+	it("handles Backspace key to delete last residue", () => {
+		render(<AminoAcidGridPicker {...defaultProps} />);
 
-    unmount()
-    render(<AminoAcidPicker {...defaultProps} />)
+		fireEvent.keyDown(screen.getByRole("dialog"), { key: "Backspace" });
 
-    expect(screen.getByText('RUNNING')).toBeInTheDocument()
-  })
+		expect(defaultProps.onDeleteLast).toHaveBeenCalledTimes(1);
+	});
 
-  it('keeps FAILED visible until dismissed', async () => {
-    useJobStatusStore.getState().upsertJobPanel(JOB_PANEL_KEYS.aminoBuilder, {
-      status: 'FAILED',
-      error: 'Boom',
-      jobId: 'job-1',
-    })
+	it("handles Enter key only when confirmation is enabled", () => {
+		const { rerender } = render(<AminoAcidGridPicker {...defaultProps} />);
 
-    render(<AminoAcidPicker {...defaultProps} />)
+		fireEvent.keyDown(screen.getByRole("dialog"), { key: "Enter" });
+		expect(defaultProps.onConfirm).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText('FAILED')).toBeInTheDocument()
-    expect(screen.getByText('Boom')).toBeInTheDocument()
+		rerender(<AminoAcidGridPicker {...defaultProps} canConfirm={false} />);
+		fireEvent.keyDown(screen.getByRole("dialog"), { key: "Enter" });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /descartar/i }))
-      await Promise.resolve()
-    })
-
-    await waitFor(() => {
-      expect(screen.queryByText('FAILED')).not.toBeInTheDocument()
-    })
-
-    expect(screen.getByText('Gly')).toBeInTheDocument()
-  })
-})
+		expect(defaultProps.onConfirm).toHaveBeenCalledTimes(1);
+	});
+});

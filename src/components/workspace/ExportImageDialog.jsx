@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,39 +6,39 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 export function ExportImageDialog({ open, onOpenChange, onExport }) {
-  const [format, setFormat] = useState('png')
-  const [scale, setScale] = useState(2)
-  const [transparent, setTransparent] = useState(false)
-  const [exporting, setExporting] = useState(false)
+  const [format, setFormat] = useState("png");
+  const [scale, setScale] = useState(2);
+  const [transparent, setTransparent] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
-    setExporting(true)
+    setExporting(true);
     try {
-      await onExport({ format, scale, transparent })
+      await onExport({ format, scale, transparent });
     } finally {
-      setExporting(false)
-      onOpenChange(false)
+      setExporting(false);
+      onOpenChange(false);
     }
-  }
+  };
 
   const scales = [
-    { value: 1, label: '1x (Estándar)' },
-    { value: 2, label: '2x (Alta)' },
-    { value: 4, label: '4x (Publicación)' },
-  ]
+    { value: 1, label: "1x (Estándar)" },
+    { value: 2, label: "2x (Alta)" },
+    { value: 4, label: "4x (Publicación)" },
+  ];
 
   const formats = [
-    { value: 'png', label: 'PNG', desc: 'Sin pérdida, con transparencia' },
-    { value: 'jpeg', label: 'JPEG', desc: 'Comprimido, menor tamaño' },
-  ]
+    { value: "png", label: "PNG", desc: "Sin pérdida, con transparencia" },
+    { value: "jpeg", label: "JPEG", desc: "Comprimido, menor tamaño" },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-white">
+      <DialogContent className="bg-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-sm font-bold uppercase tracking-wider text-slate-900">
             Exportar Imagen del Visor 3D
@@ -50,7 +50,7 @@ export function ExportImageDialog({ open, onOpenChange, onExport }) {
 
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">
+            <label className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-slate-400">
               Formato
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -60,11 +60,11 @@ export function ExportImageDialog({ open, onOpenChange, onExport }) {
                   onClick={() => setFormat(f.value)}
                   className={`rounded-none border px-3 py-2 text-left transition-colors ${
                     format === f.value
-                      ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <span className="text-[11px] font-bold block">{f.label}</span>
+                  <span className="block text-[11px] font-bold">{f.label}</span>
                   <span className="text-[9px] text-slate-400">{f.desc}</span>
                 </button>
               ))}
@@ -72,7 +72,7 @@ export function ExportImageDialog({ open, onOpenChange, onExport }) {
           </div>
 
           <div>
-            <label className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">
+            <label className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-slate-400">
               Resolución
             </label>
             <div className="space-y-1">
@@ -82,8 +82,8 @@ export function ExportImageDialog({ open, onOpenChange, onExport }) {
                   onClick={() => setScale(s.value)}
                   className={`w-full rounded-none border px-3 py-2 text-left text-[11px] transition-colors ${
                     scale === s.value
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      ? "border-blue-600 bg-blue-50 font-semibold text-blue-700"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300"
                   }`}
                 >
                   {s.label}
@@ -92,32 +92,38 @@ export function ExportImageDialog({ open, onOpenChange, onExport }) {
             </div>
           </div>
 
-          {format === 'png' && (
-            <label className="flex items-center gap-2 cursor-pointer">
+          {format === "png" && (
+            <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={transparent}
                 onChange={(e) => setTransparent(e.target.checked)}
                 className="h-3.5 w-3.5 rounded-none border-slate-300"
               />
-              <span className="text-[11px] text-slate-600">Fondo transparente</span>
+              <span className="text-[11px] text-slate-600">
+                Fondo transparente
+              </span>
             </label>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="text-[10px]">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="text-[10px]"
+          >
             Cancelar
           </Button>
           <Button
             onClick={handleExport}
             disabled={exporting}
-            className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-blue-700"
+            className="bg-blue-600 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-blue-700"
           >
-            {exporting ? 'Exportando...' : 'Exportar Imagen'}
+            {exporting ? "Exportando..." : "Exportar Imagen"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

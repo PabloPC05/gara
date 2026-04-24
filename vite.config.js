@@ -9,7 +9,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        sidebarTest: fileURLToPath(new URL('./sidebar-test.html', import.meta.url)),
       },
     },
   },

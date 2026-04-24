@@ -1,92 +1,57 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { ComparisonBody } from '@/components/protein-details/ComparisonBody'
+import { render, screen } from "@testing-library/react";
+import { ComparisonGridOrchestrator } from "@/components/protein-details/orchestrators/ComparisonGridOrchestrator";
 
-vi.mock('@/components/protein-details/ComparisonColumn', () => ({
-  ComparisonColumn: ({ protein }) => (
-    <div data-testid={`col-${protein.id}`}>{protein.name}</div>
-  ),
-}))
+vi.mock("@/components/protein-details/widgets/PaeHeatmapChartWidget", () => ({
+	default: () => <div data-testid="pae-heatmap" />,
+}));
 
 const makeProteins = (count) =>
-  Array.from({ length: count }, (_, i) => ({
-    id: `prot-${i}`,
-    name: `Protein ${i}`,
-  }))
+	Array.from({ length: count }, (_, i) => ({
+		id: `prot-${i}`,
+		name: `Protein ${i}`,
+		organism: "E. coli",
+		length: 100 + i,
+	}));
 
-describe('ComparisonBody', () => {
-  it('renders header with protein count', () => {
-    render(<ComparisonBody proteins={makeProteins(3)} />)
-    expect(screen.getByText('3 proteínas seleccionadas')).toBeInTheDocument()
-  })
+describe("ComparisonGridOrchestrator", () => {
+	it("renders header with protein count", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(3)} />);
+		expect(screen.getByText("3 proteínas seleccionadas")).toBeInTheDocument();
+	});
 
-  it('renders columns for visible proteins', () => {
-    render(<ComparisonBody proteins={makeProteins(2)} visibleCount={2} />)
-    expect(screen.getByTestId('col-prot-0')).toBeInTheDocument()
-    expect(screen.getByTestId('col-prot-1')).toBeInTheDocument()
-  })
+	it("renders all protein names in header", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(2)} />);
+		expect(screen.getAllByText("Protein 0").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Protein 1").length).toBeGreaterThan(0);
+	});
 
-  it('limits visible columns to visibleCount', () => {
-    render(<ComparisonBody proteins={makeProteins(5)} visibleCount={2} />)
-    expect(screen.getAllByTestId(/^col-/)).toHaveLength(2)
-  })
+	it("renders physical properties section", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(2)} />);
+		expect(screen.getByText(/propiedades físicas/i)).toBeInTheDocument();
+	});
 
-  it('shows navigation arrows when proteins exceed visibleCount', () => {
-    render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
+	it("renders biological viability section", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(2)} />);
+		expect(screen.getByText(/viabilidad biológica/i)).toBeInTheDocument();
+	});
 
-    expect(screen.getByLabelText('Proteína anterior')).toBeInTheDocument()
-    expect(screen.getByLabelText('Proteína siguiente')).toBeInTheDocument()
-  })
+	it("renders structural confidence section", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(2)} />);
+		expect(screen.getByText(/confianza estructural/i)).toBeInTheDocument();
+	});
 
-  it('hides navigation arrows when all proteins fit', () => {
-    render(<ComparisonBody proteins={makeProteins(2)} visibleCount={2} />)
+	it("uses native scroll container (no prev/next buttons)", () => {
+		render(<ComparisonGridOrchestrator proteins={makeProteins(4)} />);
+		expect(
+			screen.queryByLabelText("Proteína anterior"),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("Proteína siguiente"),
+		).not.toBeInTheDocument();
+	});
 
-    expect(screen.queryByLabelText('Proteína anterior')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Proteína siguiente')).not.toBeInTheDocument()
-  })
-
-  it('navigates forward with next button', async () => {
-    const user = userEvent.setup()
-    render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
-
-    expect(screen.getByTestId('col-prot-0')).toBeInTheDocument()
-    expect(screen.getByTestId('col-prot-1')).toBeInTheDocument()
-
-    await user.click(screen.getByLabelText('Proteína siguiente'))
-
-    expect(screen.getByTestId('col-prot-1')).toBeInTheDocument()
-    expect(screen.getByTestId('col-prot-2')).toBeInTheDocument()
-  })
-
-  it('navigates backward with prev button', async () => {
-    const user = userEvent.setup()
-    render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
-
-    await user.click(screen.getByLabelText('Proteína siguiente'))
-    await user.click(screen.getByLabelText('Proteína anterior'))
-
-    expect(screen.getByTestId('col-prot-0')).toBeInTheDocument()
-  })
-
-  it('disables prev at start and next at end', () => {
-    render(<ComparisonBody proteins={makeProteins(3)} visibleCount={2} />)
-
-    expect(screen.getByLabelText('Proteína anterior')).toBeDisabled()
-  })
-
-  it('shows pagination indicators', () => {
-    render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
-    const indicators = document.querySelectorAll('.h-1.rounded-none')
-    expect(indicators).toHaveLength(4)
-  })
-
-  it('shows helper text when no navigation needed', () => {
-    render(<ComparisonBody proteins={makeProteins(2)} visibleCount={2} />)
-    expect(screen.getByText(/Shift \+ click/i)).toBeInTheDocument()
-  })
-
-  it('shows navigation helper text when needed', () => {
-    render(<ComparisonBody proteins={makeProteins(4)} visibleCount={2} />)
-    expect(screen.getByText(/usa las flechas/i)).toBeInTheDocument()
-  })
-})
+	it("returns null with empty proteins", () => {
+		const { container } = render(<ComparisonGridOrchestrator proteins={[]} />);
+		expect(container.firstChild).toBeNull();
+	});
+});

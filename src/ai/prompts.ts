@@ -29,21 +29,24 @@ function classifyPlddt(mean: number): string {
   return "baja (< 50)";
 }
 
-export function buildExplanationPrompt(outputs: JobOutputsResponse): string {
-  const { protein_metadata: meta, structural_data, biological_data: bio } = outputs;
+function buildExplanationPrompt(outputs: JobOutputsResponse): string {
+  const {
+    protein_metadata: meta,
+    structural_data,
+    biological_data: bio,
+  } = outputs;
   const conf = structural_data.confidence;
   const ss = bio.secondary_structure_prediction;
 
-  const identitySection =
-    meta?.protein_name
-      ? [
-          `Proteína identificada: ${meta.protein_name}${meta.organism ? ` (${meta.organism})` : ""}.`,
-          meta.description ? `Descripción: ${meta.description}.` : null,
-          meta.data_source ? `Fuente de datos: ${meta.data_source}.` : null,
-        ]
-          .filter(Boolean)
-          .join("\n")
-      : "Proteína NO identificada en la base de datos. Los datos biológicos son sintéticos.";
+  const identitySection = meta?.protein_name
+    ? [
+        `Proteína identificada: ${meta.protein_name}${meta.organism ? ` (${meta.organism})` : ""}.`,
+        meta.description ? `Descripción: ${meta.description}.` : null,
+        meta.data_source ? `Fuente de datos: ${meta.data_source}.` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "Proteína NO identificada en la base de datos. Los datos biológicos son sintéticos.";
 
   const unknownNote = !meta?.protein_name
     ? "\nIMPORTANTE: deja claro que los datos biológicos son sintéticos y que la predicción es menos fiable que para proteínas conocidas."
@@ -90,22 +93,29 @@ Propiedades biológicas:
 
 // ─── Builders para UnifiedProtein (datos ya normalizados en el store) ──────────
 
-export function buildExplanationPromptFromUnified(protein: UnifiedProtein): string {
-  const identitySection = protein.name && protein.name !== "Unknown"
-    ? [
-        `Proteína: ${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}.`,
-        protein.uniprotId ? `UniProt ID: ${protein.uniprotId}.` : null,
-        protein.pdbId ? `PDB ID: ${protein.pdbId}.` : null,
-      ].filter(Boolean).join("\n")
-    : "Proteína NO identificada en la base de datos. Los datos biológicos pueden ser sintéticos.";
+export function buildExplanationPromptFromUnified(
+  protein: UnifiedProtein,
+): string {
+  const identitySection =
+    protein.name && protein.name !== "Unknown"
+      ? [
+          `Proteína: ${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}.`,
+          protein.uniprotId ? `UniProt ID: ${protein.uniprotId}.` : null,
+          protein.pdbId ? `PDB ID: ${protein.pdbId}.` : null,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "Proteína NO identificada en la base de datos. Los datos biológicos pueden ser sintéticos.";
 
-  const unknownNote = protein.name === "Unknown"
-    ? "\nIMPORTANTE: deja claro que los datos biológicos son sintéticos y que la predicción es menos fiable."
-    : "";
+  const unknownNote =
+    protein.name === "Unknown"
+      ? "\nIMPORTANTE: deja claro que los datos biológicos son sintéticos y que la predicción es menos fiable."
+      : "";
 
-  const plddtLine = protein.plddtMean != null
-    ? `- pLDDT medio: ${protein.plddtMean.toFixed(1)} — confianza ${classifyPlddt(protein.plddtMean)}`
-    : "- Confianza estructural: no disponible";
+  const plddtLine =
+    protein.plddtMean != null
+      ? `- pLDDT medio: ${protein.plddtMean.toFixed(1)} — confianza ${classifyPlddt(protein.plddtMean)}`
+      : "- Confianza estructural: no disponible";
 
   const bioLines = protein.biological
     ? [
@@ -154,17 +164,19 @@ No inventes resultados experimentales, anotaciones de base de datos ni prediccio
 
   const proteinContext = protein
     ? (() => {
-        const proteinDesc = protein.name && protein.name !== "Unknown"
-          ? `${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}`
-          : "proteína desconocida";
+        const proteinDesc =
+          protein.name && protein.name !== "Unknown"
+            ? `${protein.name}${protein.organism && protein.organism !== "Unknown" ? ` (${protein.organism})` : ""}`
+            : "proteína desconocida";
 
         const bioSummary = protein.biological
           ? `Solubilidad: ${protein.biological.solubilityLabel}. Estabilidad: ${protein.biological.instabilityLabel}. Toxicidad: ${protein.biological.toxicityLabel}. Peso molecular: ${(protein.biological.molecularWeight / 1000).toFixed(1)} kDa.`
           : "Propiedades biológicas no disponibles.";
 
-        const plddtSummary = protein.plddtMean != null
-          ? `Confianza estructural (pLDDT medio): ${protein.plddtMean.toFixed(1)}.`
-          : "Confianza estructural no disponible.";
+        const plddtSummary =
+          protein.plddtMean != null
+            ? `Confianza estructural (pLDDT medio): ${protein.plddtMean.toFixed(1)}.`
+            : "Confianza estructural no disponible.";
 
         return `Hay una proteína seleccionada en la app. Usa este contexto cuando sea relevante, pero no fuerces la conversación a girar alrededor de ella si el usuario pregunta otra cosa.
 Si el usuario menciona "la proteína seleccionada", "esta proteína" o algo equivalente, se refiere a la siguiente:

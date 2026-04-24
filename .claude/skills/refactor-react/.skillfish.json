@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "refactor-react",
+  "owner": "snakeo",
+  "repo": "claude-debug-and-refactor-skills-plugin",
+  "path": "plugins/debug-and-refactor/skills/refactor-react",
+  "branch": "master",
+  "sha": "1b00b2495f5bb88461256843ddf6d0c60627714b",
+  "source": "manual"
+}

@@ -21,6 +21,11 @@
       "sourceType": "github",
       "computedHash": "9f8d3f268624c4757f4039617942d3e8ddcf420b9295cb943bea3bf9feb37e9d"
     },
+    "react-component-documentation": {
+      "source": "getsentry/sentry",
+      "sourceType": "github",
+      "computedHash": "e557ee89ed8c7396d704abf08c8168b5dea9e5cf0a2870acbdb3bbe181625322"
+    },
     "react-three-fiber": {
       "source": "vercel-labs/json-render",
       "sourceType": "github",

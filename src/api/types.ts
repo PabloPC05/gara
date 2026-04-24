@@ -1,33 +1,9 @@
-export type JobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-
-export interface SubmitJobPayload {
-  fasta_sequence: string;
-  fasta_filename: string;
-  gpus?: number;
-  cpus?: number;
-  memory_gb?: number;
-  max_runtime_seconds?: number;
-}
-
-export interface SubmitJobResponse {
-  job_id: string;
-  status: JobStatus;
-  message: string;
-}
-
-export interface JobStatusResponse {
-  job_id: string;
-  status: JobStatus;
-  created_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  gpus: number;
-  cpus: number;
-  memory_gb: number;
-  max_runtime_seconds: number;
-  fasta_filename: string;
-  error_message: string | null;
-}
+export type JobStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
 
 export interface ProteinMetadata {
   identified_protein: string | null;
@@ -96,7 +72,7 @@ export interface JobOutputsResponse {
   logs: string;
 }
 
-export interface ProteinSample {
+interface ProteinSample {
   protein_name: string;
   uniprot_id: string;
   sequence_length: number;

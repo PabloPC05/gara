@@ -1,4 +1,4 @@
-import { useUIStore } from '../stores/useUIStore'
+import { useViewerConfigStore } from "../stores/useViewerConfigStore";
 
 /**
  * Captura el canvas WebGL de Mol* y devuelve una imagen como data URL.
@@ -12,38 +12,41 @@ import { useUIStore } from '../stores/useUIStore'
  */
 export async function captureViewerImage(plugin, options = {}) {
   const {
-    format = 'png',
+    format = "png",
     scale = 2,
     transparent = false,
     background = null,
-  } = options
+  } = options;
 
-  if (!plugin?.canvas3d) throw new Error('Plugin Mol* no disponible')
+  if (!plugin?.canvas3d) throw new Error("Plugin Mol* no disponible");
 
-  const canvas = plugin.canvas3d.getCanvas()
-  if (!canvas) throw new Error('Canvas WebGL no disponible')
+  const canvas = plugin.canvas3d.getCanvas();
+  if (!canvas) throw new Error("Canvas WebGL no disponible");
 
-  const w = canvas.width
-  const h = canvas.height
-  const sw = w * scale
-  const sh = h * scale
+  const w = canvas.width;
+  const h = canvas.height;
+  const sw = w * scale;
+  const sh = h * scale;
 
-  const offscreen = document.createElement('canvas')
-  offscreen.width = sw
-  offscreen.height = sh
-  const ctx = offscreen.getContext('2d')
+  const offscreen = document.createElement("canvas");
+  offscreen.width = sw;
+  offscreen.height = sh;
+  const ctx = offscreen.getContext("2d");
 
   if (!transparent) {
-    const bgColor = background || useUIStore.getState().viewerBackground || '#ffffff'
-    ctx.fillStyle = bgColor
-    ctx.fillRect(0, 0, sw, sh)
+    const bgColor =
+      background ||
+      useViewerConfigStore.getState().viewerBackground ||
+      "#ffffff";
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, sw, sh);
   }
 
-  ctx.drawImage(canvas, 0, 0, sw, sh)
+  ctx.drawImage(canvas, 0, 0, sw, sh);
 
-  const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png'
-  const quality = format === 'jpeg' ? 0.92 : undefined
-  return offscreen.toDataURL(mime, quality)
+  const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+  const quality = format === "jpeg" ? 0.92 : undefined;
+  return offscreen.toDataURL(mime, quality);
 }
 
 /**
@@ -51,24 +54,28 @@ export async function captureViewerImage(plugin, options = {}) {
  */
 export async function exportViewerImage(plugin, options = {}) {
   const {
-    format = 'png',
+    format = "png",
     scale = 2,
     transparent = false,
     filename = null,
-  } = options
+  } = options;
 
-  const dataUrl = await captureViewerImage(plugin, { format, scale, transparent })
+  const dataUrl = await captureViewerImage(plugin, {
+    format,
+    scale,
+    transparent,
+  });
 
-  const proteinName = filename || 'camelia_structure'
-  const safeName = proteinName.replace(/[^a-z0-9_-]+/gi, '_').toLowerCase()
-  const ext = format === 'jpeg' ? 'jpg' : 'png'
+  const proteinName = filename || "camelia_structure";
+  const safeName = proteinName.replace(/[^a-z0-9_-]+/gi, "_").toLowerCase();
+  const ext = format === "jpeg" ? "jpg" : "png";
 
-  const a = document.createElement('a')
-  a.href = dataUrl
-  a.download = `${safeName}_${scale}x.${ext}`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = `${safeName}_${scale}x.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 /**
@@ -78,15 +85,17 @@ export async function exportViewerImage(plugin, options = {}) {
  */
 export function capturePlotlyImage(plotlyContainer) {
   return new Promise((resolve) => {
-    if (!plotlyContainer || typeof window.Plotly === 'undefined') {
-      resolve(null)
-      return
+    if (!plotlyContainer || typeof window.Plotly === "undefined") {
+      resolve(null);
+      return;
     }
     window.Plotly.toImage(plotlyContainer, {
-      format: 'png',
+      format: "png",
       width: 800,
       height: 800,
       scale: 2,
-    }).then(resolve).catch(() => resolve(null))
-  })
+    })
+      .then(resolve)
+      .catch(() => resolve(null));
+  });
 }
