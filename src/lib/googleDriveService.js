@@ -7,8 +7,6 @@
  */
 
 /* global google */
- * - Habilitar Drive API, Sheets API y Docs API en Google Cloud Console.
- */
 
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files";
 const SHEETS_API_URL = "https://sheets.googleapis.com/v4/spreadsheets";

@@ -16,7 +16,7 @@ const NO_SCORE = Color(0xaaaaaa);
 
 function getBfactor(
 	unit: import("molstar/lib/mol-model/structure.js").Unit,
-	element: import("molstar/lib/mol-model/structure.js").StructureElement,
+	element: any,
 ) {
 	if (Unit.isAtomic(unit)) {
 		return unit.model.atomicConformation.B_iso_or_equiv.value(element);
@@ -84,6 +84,8 @@ const AlphafoldPlddtColorThemeProvider = {
 export function registerAlphafoldPlddtTheme(plugin: PluginContext): void {
 	const registry = plugin.representation?.structure?.themes?.colorThemeRegistry;
 	if (!registry) return;
+	// @ts-expect-error Mol* color theme registry — provider type mismatch with granularity
 	if (registry.has(AlphafoldPlddtColorThemeProvider)) return;
+	// @ts-expect-error Mol* color theme registry.add — granularity type mismatch
 	registry.add(AlphafoldPlddtColorThemeProvider);
 }

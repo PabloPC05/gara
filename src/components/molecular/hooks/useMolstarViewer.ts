@@ -112,7 +112,6 @@ export function useMolstarViewer({
 			pluginRef.current = null;
 			if (container) container.innerHTML = "";
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, deps);
 
 	return { containerRef, pluginRef };

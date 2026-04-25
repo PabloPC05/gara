@@ -35,15 +35,6 @@ export function PiChargeCalculatorWidget({ v }) {
 		return { mwDa, pI, profile, ionizable, chargeAtSlider };
 	}, [isValidSequence, sequence, sliderPh]);
 
-	const sliderMarkerData = useMemo(() => {
-		if (!computed) return [];
-		return computed.profile.map((p) => ({
-			...p,
-			sliderCharge:
-				p.pH === Math.round(sliderPh * 4) / 4 ? computed.chargeAtSlider : null,
-		}));
-	}, [computed, sliderPh]);
-
 	if (!isValidSequence || !computed) return null;
 
 	const { mwDa, pI, profile, ionizable, chargeAtSlider } = computed;

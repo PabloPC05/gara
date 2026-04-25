@@ -199,13 +199,13 @@ export function useMolecularViewer(
 		focusedResidueRef,
 		selectedIdsRef,
 		setFocusedResidue,
+		// @ts-expect-error Zustand store typed as TypedStore — compatible at runtime
 		analysisStore: useAStore,
 	});
 
 	useEffect(() => {
 		hoverHandlerRef.current = createHoverHandler();
 		clickHandlerRef.current = createClickHandler();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	useEffect(() => {

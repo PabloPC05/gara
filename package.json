@@ -11,7 +11,7 @@
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"typecheck": "tsc --noEmit",
-		"lint": "eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
+		"lint": "eslint . --report-unused-disable-directives --max-warnings 0",
 		"format": "prettier --write \"./src/**/*.{js,jsx,ts,tsx}\""
 	},
 	"dependencies": {

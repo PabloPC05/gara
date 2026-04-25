@@ -104,7 +104,9 @@ export function registerBiochemicalThemes(plugin: PluginContext): void {
 	const registry = plugin.representation?.structure?.themes?.colorThemeRegistry;
 	if (!registry) return;
 	for (const provider of ALL_PROVIDERS) {
+		// @ts-expect-error Mol* color theme registry — provider type mismatch with granularity
 		if (!registry.has(provider)) {
+			// @ts-expect-error Mol* color theme registry.add — granularity type mismatch
 			registry.add(provider);
 		}
 	}

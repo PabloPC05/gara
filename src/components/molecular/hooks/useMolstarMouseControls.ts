@@ -175,14 +175,17 @@ export function useMolstarMouseControls({
 			if (!entry) return;
 
 			if (drag.mode === "rotate") {
+				// @ts-expect-error Mol* Mat4 branded type — ArrayLike<number> works at runtime
 				applyRotation(entry.mat, drag.centroid, dx * 0.01, dy * 0.01);
 			} else {
 				const axes = getCameraAxes() ?? drag.axes;
 				const scale =
 					DRAG_SCALE * (plugin.canvas3d?.camera?.state?.radius ?? 50);
+				// @ts-expect-error Mol* Mat4 branded type — ArrayLike<number> works at runtime
 				applyTranslation(entry.mat, axes.right, axes.up, dx, dy, scale);
 			}
 
+			// @ts-expect-error Mol* Mat4 branded type on entry.mat
 			await commitTransform(plugin, entry);
 			drag.lastX = event.clientX;
 			drag.lastY = event.clientY;

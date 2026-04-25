@@ -1,118 +1,137 @@
 import { create } from "zustand";
 import {
-  DEFAULT_JOB_RESOURCES_PRESET_ID,
-  getJobResourcesPreset,
-  normalizeJobResources,
-  resolveJobResourcesPresetId,
+	DEFAULT_JOB_RESOURCES_PRESET_ID,
+	getJobResourcesPreset,
+	normalizeJobResources,
+	resolveJobResourcesPresetId,
 } from "@/lib/jobResources";
 
 function load(key: string, fallback: string): string {
-  const v = localStorage.getItem(key);
-  return v !== null ? v : fallback;
+	const v = localStorage.getItem(key);
+	return v !== null ? v : fallback;
 }
 
 function loadJSON<T>(key: string, fallback: T): T {
-  const raw = localStorage.getItem(key);
-  if (raw === null) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+	const raw = localStorage.getItem(key);
+	if (raw === null) return fallback;
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		return fallback;
+	}
 }
 
 function persistJobResources(
-  presetId: string,
-  resources: Record<string, unknown>,
+	presetId: string,
+	resources: Record<string, unknown>,
 ) {
-  localStorage.setItem("ui:jobResourcesPreset", presetId);
-  localStorage.setItem("ui:jobResources", JSON.stringify(resources));
+	localStorage.setItem("ui:jobResourcesPreset", presetId);
+	localStorage.setItem("ui:jobResources", JSON.stringify(resources));
 }
 
 const savedDarkMode = load("ui:darkMode", "false") === "true";
 const savedLanguage = load("ui:language", "es");
 const savedCompact = load("ui:compact", "false") === "true";
 const savedJobResourcesPreset = load(
-  "ui:jobResourcesPreset",
-  DEFAULT_JOB_RESOURCES_PRESET_ID,
+	"ui:jobResourcesPreset",
+	DEFAULT_JOB_RESOURCES_PRESET_ID,
 );
 const savedJobResourcesRaw = loadJSON<Record<string, unknown> | null>(
-  "ui:jobResources",
-  null,
+	"ui:jobResources",
+	null,
 );
 const savedJobResources = savedJobResourcesRaw
-  ? normalizeJobResources(savedJobResourcesRaw)
-  : normalizeJobResources(
-      getJobResourcesPreset(savedJobResourcesPreset).resources,
-    );
+	? normalizeJobResources(savedJobResourcesRaw)
+	: normalizeJobResources(
+			getJobResourcesPreset(savedJobResourcesPreset).resources,
+		);
 const normalizedSavedJobResourcesPreset = savedJobResourcesRaw
-  ? resolveJobResourcesPresetId(savedJobResources)
-  : getJobResourcesPreset(savedJobResourcesPreset).id;
+	? resolveJobResourcesPresetId(savedJobResources)
+	: getJobResourcesPreset(savedJobResourcesPreset).id;
 
 if (savedDarkMode) document.documentElement.classList.add("dark");
 
-export const useLayoutStore = create((set) => ({
-  // ── Sidebar / Panels ──────────────────────────────────────────────────
-  activeTab: "plus" as string | null,
-  currentView: "viewer" as string,
-  detailsPanelOpen: false,
+interface LayoutState {
+	activeTab: string | null;
+	currentView: string;
+	detailsPanelOpen: boolean;
+	darkMode: boolean;
+	language: string;
+	compactMode: boolean;
+	jobResourcesPreset: string;
+	jobResources: Record<string, unknown>;
+	setActiveTab: (tab: string) => void;
+	setCurrentView: (view: string) => void;
+	setDetailsPanelOpen: (open: boolean) => void;
+	toggleDarkMode: () => void;
+	setLanguage: (lang: string) => void;
+	toggleCompactMode: () => void;
+	setJobResourcesPreset: (presetId: string) => void;
+	updateJobResources: (partialResources: Record<string, unknown>) => void;
+}
 
-  // ── User preferences ──────────────────────────────────────────────────
-  darkMode: savedDarkMode,
-  language: savedLanguage,
-  compactMode: savedCompact,
+export const useLayoutStore = create<LayoutState>((set) => ({
+	// ── Sidebar / Panels ──────────────────────────────────────────────────
+	activeTab: "plus" as string | null,
+	currentView: "viewer" as string,
+	detailsPanelOpen: false,
 
-  // ── Job resources ─────────────────────────────────────────────────────
-  jobResourcesPreset: normalizedSavedJobResourcesPreset,
-  jobResources: savedJobResources,
+	// ── User preferences ──────────────────────────────────────────────────
+	darkMode: savedDarkMode,
+	language: savedLanguage,
+	compactMode: savedCompact,
 
-  // ── Actions ───────────────────────────────────────────────────────────
-  setActiveTab: (tab: string) =>
-    set((state: { activeTab: string | null }) => ({
-      activeTab: state.activeTab === tab ? null : tab,
-    })),
+	// ── Job resources ─────────────────────────────────────────────────────
+	jobResourcesPreset: normalizedSavedJobResourcesPreset,
+	jobResources: savedJobResources,
 
-  setCurrentView: (view: string) => set({ currentView: view }),
+	// ── Actions ───────────────────────────────────────────────────────────
+	setActiveTab: (tab: string) =>
+		set((state: { activeTab: string | null }) => ({
+			activeTab: state.activeTab === tab ? null : tab,
+		})),
 
-  setDetailsPanelOpen: (open: boolean) => set({ detailsPanelOpen: open }),
+	setCurrentView: (view: string) => set({ currentView: view }),
 
-  toggleDarkMode: () =>
-    set((state: { darkMode: boolean }) => {
-      const next = !state.darkMode;
-      localStorage.setItem("ui:darkMode", String(next));
-      document.documentElement.classList.toggle("dark", next);
-      return { darkMode: next };
-    }),
+	setDetailsPanelOpen: (open: boolean) => set({ detailsPanelOpen: open }),
 
-  setLanguage: (lang: string) =>
-    set(() => {
-      localStorage.setItem("ui:language", lang);
-      return { language: lang };
-    }),
+	toggleDarkMode: () =>
+		set((state: { darkMode: boolean }) => {
+			const next = !state.darkMode;
+			localStorage.setItem("ui:darkMode", String(next));
+			document.documentElement.classList.toggle("dark", next);
+			return { darkMode: next };
+		}),
 
-  toggleCompactMode: () =>
-    set((state: { compactMode: boolean }) => {
-      const next = !state.compactMode;
-      localStorage.setItem("ui:compact", String(next));
-      return { compactMode: next };
-    }),
+	setLanguage: (lang: string) =>
+		set(() => {
+			localStorage.setItem("ui:language", lang);
+			return { language: lang };
+		}),
 
-  setJobResourcesPreset: (presetId: string) =>
-    set(() => {
-      const preset = getJobResourcesPreset(presetId);
-      const nextResources = normalizeJobResources(preset.resources);
-      persistJobResources(preset.id, nextResources);
-      return { jobResourcesPreset: preset.id, jobResources: nextResources };
-    }),
+	toggleCompactMode: () =>
+		set((state: { compactMode: boolean }) => {
+			const next = !state.compactMode;
+			localStorage.setItem("ui:compact", String(next));
+			return { compactMode: next };
+		}),
 
-  updateJobResources: (partialResources: Record<string, unknown>) =>
-    set((state: { jobResources: Record<string, unknown> }) => {
-      const nextResources = normalizeJobResources({
-        ...state.jobResources,
-        ...partialResources,
-      });
-      const nextPresetId = resolveJobResourcesPresetId(nextResources);
-      persistJobResources(nextPresetId, nextResources);
-      return { jobResourcesPreset: nextPresetId, jobResources: nextResources };
-    }),
+	setJobResourcesPreset: (presetId: string) =>
+		set(() => {
+			const preset = getJobResourcesPreset(presetId);
+			const nextResources = normalizeJobResources(preset.resources);
+			persistJobResources(preset.id, nextResources);
+			return { jobResourcesPreset: preset.id, jobResources: nextResources };
+		}),
+
+	updateJobResources: (partialResources: Record<string, unknown>) =>
+		set((state: { jobResources: Record<string, unknown> }) => {
+			const nextResources = normalizeJobResources({
+				...state.jobResources,
+				...partialResources,
+			});
+			const nextPresetId = resolveJobResourcesPresetId(nextResources);
+			persistJobResources(nextPresetId, nextResources);
+			return { jobResourcesPreset: nextPresetId, jobResources: nextResources };
+		}),
 }));

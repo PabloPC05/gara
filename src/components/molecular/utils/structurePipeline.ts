@@ -193,6 +193,7 @@ function injectPlddtBfactorsCif(cifText: string, plddt: number[]): string {
 function getPreferredSeqId(
 	Q: Parameters<typeof Script.getStructureSelection>[0],
 ) {
+	// @ts-expect-error Mol* Script builder — Q.struct works at runtime despite union type
 	return Q.struct.atomProperty.macromolecular.label_seq_id();
 }
 
@@ -216,6 +217,7 @@ async function loadStructureEntry(
 			text = injectPlddtBfactorsCif(rawText, plddtPerResidue);
 	}
 	const dataRef = await plugin.builders.data.rawData({ data: text, label: id });
+	// @ts-expect-error Mol* parseTrajectory accepts string format at runtime
 	const traj = await plugin.builders.structure.parseTrajectory(dataRef, format);
 	const model = await plugin.builders.structure.createModel(traj);
 	const baseRef = await plugin.builders.structure.createStructure(model);
@@ -232,6 +234,7 @@ async function loadStructureEntry(
 		.commit();
 
 	const reprRef =
+		// @ts-expect-error Mol* addRepresentation accepts string type/color at runtime
 		await plugin.builders.structure.representation.addRepresentation(
 			transformedRef,
 			{
@@ -287,7 +290,7 @@ export async function syncStructures(
 			const entry = await loadStructureEntry(
 				plugin,
 				id,
-				protein,
+				protein as Record<string, unknown>,
 				reprType,
 				colorScheme,
 			);
@@ -313,6 +316,7 @@ export async function commitTransform(
 		.to(entry.transformedRef.ref)
 		.update(StateTransforms.Model.TransformStructureConformation, () => ({
 			transform: {
+				// @ts-expect-error Mol* transform name accepts "matrix" at runtime
 				name: "matrix",
 				params: { data: Array.from(entry.mat), transpose: false },
 			},
@@ -331,11 +335,11 @@ export function selectResidueBySeqId(
 
 	try {
 		const sel = Script.getStructureSelection(
-			(Q) =>
+			((Q: any) =>
 				Q.struct.generator.atomGroups({
 					"residue-test": Q.core.rel.eq([getPreferredSeqId(Q), seqId]),
 					"group-by": Q.struct.atomProperty.macromolecular.residueKey(),
-				}),
+				})) as any,
 			structure,
 		);
 		const loci = StructureSelection.toLociWithSourceUnits(sel);

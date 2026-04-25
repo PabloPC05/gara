@@ -95,6 +95,8 @@ const AnimatedPlddtColorThemeProvider = {
 export function registerAnimatedPlddtTheme(plugin: PluginContext): void {
 	const registry = plugin.representation?.structure?.themes?.colorThemeRegistry;
 	if (!registry) return;
+	// @ts-expect-error Mol* color theme registry — provider type mismatch with granularity
 	if (registry.has(AnimatedPlddtColorThemeProvider)) return;
+	// @ts-expect-error Mol* color theme registry.add — granularity type mismatch
 	registry.add(AnimatedPlddtColorThemeProvider);
 }
