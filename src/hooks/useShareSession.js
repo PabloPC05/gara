@@ -14,7 +14,7 @@ export function useShareSession() {
   const proteinsById = useProteinStore((s) => s.proteinsById);
   const selectedProteinIds = useProteinStore((s) => s.selectedProteinIds);
 
-  const handleShareSession = useCallback(() => {
+  const handleShareSession = useCallback(async () => {
     const currentProteins = Object.values(proteinsById);
     if (currentProteins.length === 0) {
       toast.warning("No hay proteinas activas para compartir.");
@@ -58,27 +58,43 @@ export function useShareSession() {
 
     const shareUrl = buildShareUrl(serialization.encoded);
 
-    navigator.clipboard
-      .writeText(shareUrl)
-      .then(() => {
-        const usedLightShare =
-          serialization.strategy === SHARE_SERIALIZATION_STRATEGY.LIGHT;
-        toast.success("Enlace copiado al portapapeles", {
-          description: usedLightShare
-            ? "Se compartio una version liviana (sin datos estructurales embebidos) para respetar el limite de tamaño."
-            : "Cualquiera con este enlace vera la vista exacta que estas viendo.",
-          duration: 5000,
-        });
-      })
-      .catch(() => {
-        navigator.clipboard.writeText(shareUrl);
-        toast.info("Enlace generado", {
-          description:
-            "No se pudo copiar automaticamente. El enlace esta en la consola.",
-          duration: 5000,
-        });
-        console.log("[Share URL]", shareUrl);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      const usedLightShare =
+        serialization.strategy === SHARE_SERIALIZATION_STRATEGY.LIGHT;
+      toast.success("Enlace copiado al portapapeles", {
+        description: usedLightShare
+          ? "Se compartio una version liviana (sin datos estructurales embebidos) para respetar el limite de tamaño."
+          : "Cualquiera con este enlace vera la vista exacta que estas viendo.",
+        duration: 5000,
       });
+    } catch {
+      const input = document.createElement("input");
+      input.value = shareUrl;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.left = "-9999px";
+      document.body.appendChild(input);
+      input.focus();
+      input.select();
+
+      toast.info("Enlace generado (copia manual requerida)", {
+        description:
+          "No se pudo copiar automaticamente. Seleccionamos el enlace para que uses Ctrl/Cmd + C.",
+        duration: 6000,
+      });
+
+      window.alert(
+        "No se pudo copiar automaticamente. Usa Ctrl/Cmd + C para copiar el enlace seleccionado.",
+      );
+      console.log("[Share URL]", shareUrl);
+
+      window.setTimeout(() => {
+        if (document.body.contains(input)) {
+          document.body.removeChild(input);
+        }
+      }, 10000);
+    }
   }, [proteinsById, selectedProteinIds]);
 
   return { handleShareSession };

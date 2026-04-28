@@ -221,7 +221,13 @@ export function parseShareUrl({
 }
 
 export function cleanShareUrl() {
-  window.history.replaceState({}, "", window.location.pathname);
+  const params = new URLSearchParams(window.location.search);
+  params.delete("view");
+
+  const query = params.toString();
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+
+  window.history.replaceState({}, "", nextUrl);
 }
 
 export function getSharePayloadLimits() {
