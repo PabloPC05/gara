@@ -73,7 +73,12 @@ export async function loadProteinFromInput(
 	const trimmed = input?.trim();
 	if (!trimmed) return null;
 
-	const { upsertProtein, setProteinLoading, setProteinError } =
+	const {
+		upsertProtein,
+		setProteinLoading,
+		setProteinError,
+		clearProteinLoadingByJobId,
+	} =
 		useProteinStore.getState();
 
 	let jobId: string | null = null;
@@ -86,6 +91,9 @@ export async function loadProteinFromInput(
 		);
 		const submission = await submitJob(fasta, state.jobResources);
 		jobId = submission.jobId;
+		if (!jobId) {
+			throw new ApiError("La API no devolvió jobId al crear el trabajo");
+		}
 		opts.onJobCreated?.(jobId);
 		setProteinLoading(jobId);
 
@@ -106,8 +114,20 @@ export async function loadProteinFromInput(
 			throw new ApiError("Respuesta de la API sin datos suficientes");
 		}
 
+		const proteinId =
+			typeof unified.id === "string" && unified.id.length > 0
+				? unified.id
+				: null;
+		if (!proteinId) {
+			throw new ApiError("Respuesta de la API sin identificador de proteína");
+		}
+
+		setProteinLoading(jobId, proteinId);
 		upsertProtein(unified as any);
-		return unified.id;
+		if (proteinId !== jobId) {
+			clearProteinLoadingByJobId(jobId);
+		}
+		return proteinId;
 	} catch (error: unknown) {
 		if (error instanceof DOMException && error.name === "AbortError")
 			return null;
@@ -164,12 +184,16 @@ export async function loadProteinFromInputWithJobPanel(
 	} catch (error: unknown) {
 		if (opts.panelKey) {
 			const loadError = error as ProteinLoadJobError;
+			const resolvedJobId =
+				typeof loadError?.jobId === "string" && loadError.jobId.length > 0
+					? loadError.jobId
+					: undefined;
 			useJobStatusStore.getState().upsertJobPanel(opts.panelKey, {
 				status: (loadError.jobStatus === "CANCELLED"
 					? "CANCELLED"
 					: "FAILED") as JobStatus,
 				error: loadError?.message ?? "No se pudo procesar la proteína",
-				jobId: loadError?.jobId ?? undefined,
+				jobId: resolvedJobId,
 				subjectId: undefined,
 			});
 		}
