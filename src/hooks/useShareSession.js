@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import { useProteinStore } from "../stores/useProteinStore";
 import { useMolstarStore } from "../stores/useMolstarStore";
 import { useViewerConfigStore } from "../stores/useViewerConfigStore";
-import { serializeViewerState, buildShareUrl } from "../utils/deepLink";
+import {
+  serializeViewerState,
+  buildShareUrl,
+  SHARE_SERIALIZATION_STRATEGY,
+  getSharePayloadLimits,
+} from "../utils/deepLink";
 
 export function useShareSession() {
   const proteinsById = useProteinStore((s) => s.proteinsById);
@@ -28,7 +33,7 @@ export function useShareSession() {
       ? focusedResidueByProtein[activeProteinId]
       : null;
 
-    const encoded = serializeViewerState({
+    const serialization = serializeViewerState({
       proteinsById,
       selectedProteinIds,
       plugin,
@@ -40,15 +45,29 @@ export function useShareSession() {
       },
     });
 
-    const shareUrl = buildShareUrl(encoded);
+    if (!serialization.encoded) {
+      const { maxEncodedLength, heavyFields } = getSharePayloadLimits();
+      toast.error("No se pudo generar el enlace compartible", {
+        description:
+          serialization.error ||
+          `El payload supera el limite de ${maxEncodedLength} caracteres, incluso omitiendo ${heavyFields.join(", ")}.`,
+        duration: 6000,
+      });
+      return;
+    }
+
+    const shareUrl = buildShareUrl(serialization.encoded);
 
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
+        const usedLightShare =
+          serialization.strategy === SHARE_SERIALIZATION_STRATEGY.LIGHT;
         toast.success("Enlace copiado al portapapeles", {
-          description:
-            "Cualquiera con este enlace vera la vista exacta que estas viendo.",
-          duration: 4000,
+          description: usedLightShare
+            ? "Se compartio una version liviana (sin datos estructurales embebidos) para respetar el limite de tamaño."
+            : "Cualquiera con este enlace vera la vista exacta que estas viendo.",
+          duration: 5000,
         });
       })
       .catch(() => {
