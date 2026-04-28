@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useProteinStore } from "../stores/useProteinStore";
 import { useViewerConfigStore } from "../stores/useViewerConfigStore";
 import { parseShareUrl, cleanShareUrl } from "../utils/deepLink";
@@ -10,7 +11,14 @@ export function useDeepLinkRestore() {
 		if (ran.current) return;
 		ran.current = true;
 
-		const state = parseShareUrl();
+		const state = parseShareUrl({
+			onError: (message) => {
+				toast.error("No se pudo restaurar el enlace compartido", {
+					description: message,
+					duration: 6000,
+				});
+			},
+		});
 		if (!state) return;
 
 		const { upsertProtein, setSelectedProteinIds } = useProteinStore.getState();
