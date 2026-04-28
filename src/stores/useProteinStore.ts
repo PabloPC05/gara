@@ -7,12 +7,18 @@ interface ProteinState {
 	activeProteinId: string | null;
 	loadingById: Record<string, boolean>;
 	errorById: Record<string, string>;
+	proteinIdByJobId: Record<string, string>;
 
 	upsertProtein: (protein: RawProtein) => void;
 	replaceCatalog: (proteins: RawProtein[]) => void;
 	removeProtein: (id: string) => void;
-	setProteinLoading: (id: string) => void;
-	setProteinError: (id: string, message: string) => void;
+	setProteinLoading: (jobId: string, proteinId?: string | null) => void;
+	setProteinError: (
+		jobId: string,
+		message: string,
+		proteinId?: string | null,
+	) => void;
+	clearProteinLoadingByJobId: (jobId: string) => void;
 	setSelectedProteinIds: (ids: string[]) => void;
 	toggleProteinSelection: (id: string) => void;
 	setActiveProteinId: (id: string) => void;
@@ -25,6 +31,7 @@ export const useProteinStore = create<ProteinState>()((set, get) => ({
 	activeProteinId: null,
 	loadingById: {},
 	errorById: {},
+	proteinIdByJobId: {},
 
 	upsertProtein: (protein) => {
 		if (!protein?.id) return;
@@ -32,6 +39,10 @@ export const useProteinStore = create<ProteinState>()((set, get) => ({
 			proteinsById: { ...state.proteinsById, [protein.id as string]: protein },
 			loadingById: omitKey(state.loadingById, protein.id as string),
 			errorById: omitKey(state.errorById, protein.id as string),
+			proteinIdByJobId: omitJobsByProteinId(
+				state.proteinIdByJobId,
+				protein.id as string,
+			),
 		}));
 	},
 
@@ -51,6 +62,7 @@ export const useProteinStore = create<ProteinState>()((set, get) => ({
 						: null,
 				loadingById: {},
 				errorById: {},
+				proteinIdByJobId: {},
 			};
 		});
 	},
@@ -70,20 +82,46 @@ export const useProteinStore = create<ProteinState>()((set, get) => ({
 						: null,
 				loadingById: omitKey(state.loadingById, id),
 				errorById: omitKey(state.errorById, id),
+				proteinIdByJobId: omitJobsByProteinId(state.proteinIdByJobId, id),
 			};
 		}),
 
-	setProteinLoading: (id) =>
-		set((state) => ({
-			loadingById: { ...state.loadingById, [id]: true },
-			errorById: omitKey(state.errorById, id),
-		})),
+	setProteinLoading: (jobId, proteinId) =>
+		set((state) => {
+			const key = resolveProteinStateKey(state.proteinIdByJobId, jobId, proteinId);
+			return {
+				loadingById: { ...state.loadingById, [key]: true },
+				errorById: omitKey(state.errorById, key),
+				proteinIdByJobId:
+					typeof proteinId === "string" && proteinId.length > 0
+						? { ...state.proteinIdByJobId, [jobId]: proteinId }
+						: state.proteinIdByJobId,
+			};
+		}),
 
-	setProteinError: (id, message) =>
-		set((state) => ({
-			loadingById: omitKey(state.loadingById, id),
-			errorById: { ...state.errorById, [id]: message },
-		})),
+	setProteinError: (jobId, message, proteinId) =>
+		set((state) => {
+			const key = resolveProteinStateKey(state.proteinIdByJobId, jobId, proteinId);
+			return {
+				loadingById: omitKey(state.loadingById, key),
+				errorById: { ...state.errorById, [key]: message },
+				proteinIdByJobId:
+					typeof proteinId === "string" && proteinId.length > 0
+						? { ...state.proteinIdByJobId, [jobId]: proteinId }
+						: state.proteinIdByJobId,
+			};
+		}),
+
+	clearProteinLoadingByJobId: (jobId) =>
+		set((state) => {
+			const proteinId = state.proteinIdByJobId[jobId];
+			if (!proteinId) return state;
+			return {
+				loadingById: omitKey(state.loadingById, proteinId),
+				errorById: omitKey(state.errorById, proteinId),
+				proteinIdByJobId: omitKey(state.proteinIdByJobId, jobId),
+			};
+		}),
 
 	setSelectedProteinIds: (ids) => {
 		const newIds = normalizeSelection(ids);
@@ -135,4 +173,29 @@ function normalizeSelection(ids: string[]): string[] {
 		}
 	}
 	return result.slice(0, 2);
+}
+
+function resolveProteinStateKey(
+	proteinIdByJobId: Record<string, string>,
+	jobId: string,
+	proteinId?: string | null,
+): string {
+	if (typeof proteinId === "string" && proteinId.length > 0) return proteinId;
+	const mappedProteinId = proteinIdByJobId[jobId];
+	if (typeof mappedProteinId === "string" && mappedProteinId.length > 0) {
+		return mappedProteinId;
+	}
+	return jobId;
+}
+
+function omitJobsByProteinId(
+	proteinIdByJobId: Record<string, string>,
+	proteinId: string,
+): Record<string, string> {
+	let next = proteinIdByJobId;
+	for (const [jobId, mappedProteinId] of Object.entries(proteinIdByJobId)) {
+		if (mappedProteinId !== proteinId) continue;
+		next = omitKey(next, jobId);
+	}
+	return next;
 }
